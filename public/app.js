@@ -20,3 +20,15 @@ $('endNav').onclick=()=>{$('navOverlay').hidden=true;$('routeSheet').hidden=fals
 $('traffic').onclick=async()=>{status('Loading traffic incidents…');trafficLayer.clearLayers();try{const b=map.getBounds();const d=await request('/api/traffic?bbox='+encodeURIComponent([b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].join(',')));let n=0;for(const f of d.incidents){const g=f.geometry||{};if(g.type!=='Point'||!Array.isArray(g.coordinates))continue;L.circleMarker([g.coordinates[1],g.coordinates[0]],{radius:7,color:'#d43d38'}).bindPopup(document.createTextNode(f.description||'Traffic incident')).addTo(trafficLayer);n++;}status('Showing '+n+' traffic incident points.');}catch(e){status('Traffic unavailable: '+e.message);}};
 $('rail').onclick=async()=>{status('Loading official rail stops…');railLayer.clearLayers();try{const d=await request('/api/gtfs?feed='+encodeURIComponent($('feed').value));for(const s of d.stops)L.circleMarker([s.lat,s.lon],{radius:4,color:'#26825b',weight:1,fillOpacity:.75}).bindPopup(document.createTextNode(s.name)).addTo(railLayer);status('Loaded '+d.stops.length+' rail stops.');}catch(e){status('Rail feed unavailable: '+e.message);}};
 $('searchPanel').hidden=false;
+/* Press-kit features: language selector and local-only hazard draft. */
+const translations={
+ en:{search:'Where to?',start:'FROM',dest:'DESTINATION',find:'Find routes',layers:'Explore Malaysia'},
+ ms:{search:'Ke mana?',start:'DARI',dest:'DESTINASI',find:'Cari laluan',layers:'Terokai Malaysia'},
+ zh:{search:'去哪里？',start:'出发地',dest:'目的地',find:'查找路线',layers:'探索马来西亚'},
+ ta:{search:'எங்கு செல்ல?',start:'தொடக்கம்',dest:'சேருமிடம்',find:'வழிகளைக் காண்க',layers:'மலேசியாவை ஆராயுங்கள்'}
+};
+$('language').onchange=()=>{const t=translations[$('language').value];$('openSearch').textContent='⌕  '+t.search;document.querySelector('.panel-heading strong').textContent=t.search;document.querySelector('label[for="from"]').textContent=t.start;document.querySelector('label[for="to"]').textContent=t.dest;$('route').textContent=t.find;document.querySelector('.explore-badge').textContent='●  '+t.layers;status('Interface labels updated. Place names and directions depend on available data.');};
+const draftLayer=L.layerGroup().addTo(map);
+$('hazard').onclick=()=>{$('hazardPanel').hidden=false;$('searchPanel').hidden=true;};
+$('closeHazard').onclick=()=>$('hazardPanel').hidden=true;
+$('saveHazard').onclick=()=>{const c=map.getCenter();const kind=$('hazardType').value;L.marker(c).bindPopup(document.createTextNode('Draft only: '+kind+' (not submitted)')).addTo(draftLayer).openPopup();$('hazardPanel').hidden=true;status('Hazard draft pin added locally. No report was submitted.');};
