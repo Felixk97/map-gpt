@@ -1,0 +1,5 @@
+{
+  "schema": "lapan-jpj-awas-v1",
+  "description": "Only verified JPJ AWAS records with an official source URL, verified date and confirmed coordinates belong here. Do not infer coordinates from kilometre markers.",
+  "cameras": []
+}
