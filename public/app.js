@@ -13,12 +13,13 @@ for(const kind of ['from','to']){const input=$(kind),list=$(kind+'-suggestions')
 $('swap').onclick=()=>{const a=selected.from,b=selected.to;if(!a||!b){status('Choose both locations first.');return;}mark('from',b,b.name);mark('to',a,a.name);clearRoute();};
 function locate(){if(!navigator.geolocation){status('Location not supported.');return;}status('Requesting location permission…');navigator.geolocation.getCurrentPosition(p=>{mark('from',{lat:p.coords.latitude,lng:p.coords.longitude},'My current location');map.setView([p.coords.latitude,p.coords.longitude],13);status('Current location selected.');},()=>status('Location unavailable. Check permissions.'),{enableHighAccuracy:true,timeout:10000});}
 $('locate').onclick=locate;$('useLocation').onclick=locate;
-function renderRoute(index){active=index;const route=routes[index];if(!route)return;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(route.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7,opacity:.95}).addTo(map);if(threeD){sync3dRoute();if(driveCamera)drivePreview();else fit3dRoute();}map.fitBounds(routeLayer.getBounds(),{padding:[45,45]});for(const [i,el] of [...$('routeOptions').children].entries())el.classList.toggle('active',i===index);$('routeInfo').textContent=route.distanceKm.toFixed(1)+' km · '+Math.round(route.travelMinutes)+' min estimated.'; $('tollInfo').textContent=route.tollStatus==='tollRoad'?'TomTom reports '+route.tollRoadSections+' toll-road section(s). Fare unavailable for vehicle class '+$('vehicleClass').value+': current verified prices are not connected.':route.tollStatus==='noTollRoadReported'?'TomTom did not report toll-road sections. This is not a guarantee of a toll-free journey.':'Toll information unavailable.';$('laneStatus').textContent=route.instructions?.some(s=>s.laneGuidance?.length)?'Provider lane guidance available for some maneuvers (see directions).':'Lane guidance unavailable for this route; follow road markings.';speedAtRoute();$('routeLanguageStatus').textContent='Route instructions requested in '+$('language').selectedOptions[0].textContent+'. Actual language depends on TomTom support; check the text before relying on voice.';const list=$('instructions');list.replaceChildren();if(route.instructions?.length){for(const step of route.instructions.slice(0,25)){const div=document.createElement('div');div.className='instruction';div.textContent=(step.message||'Continue')+(step.distanceMeters?' · '+Math.round(step.distanceMeters)+' m':'');if(step.laneGuidance?.length){const lanes=document.createElement('small');lanes.className='lane-data';lanes.textContent='Lane guidance provided for this maneuver ('+step.laneGuidance.length+' entries). Follow actual road signs.';div.appendChild(lanes);}list.appendChild(div);}}else list.textContent='Detailed turn instructions are not available from this route response.';}
+function renderRoute(index){active=index;const route=routes[index];if(!route)return;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(route.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7,opacity:.95}).addTo(map);if(threeD){sync3dRoute();if(driveCamera)drivePreview();else fit3dRoute();}map.fitBounds(routeLayer.getBounds(),{padding:[45,45]});for(const [i,el] of [...$('routeOptions').children].entries())el.classList.toggle('active',i===index);$('routeInfo').textContent=route.distanceKm.toFixed(1)+' km · '+Math.round(route.travelMinutes)+' min estimated.'; $('tollInfo').textContent=route.tollStatus==='tollRoad'?'TomTom reports '+route.tollRoadSections+' toll-road section(s). Fare unavailable for vehicle class '+$('vehicleClass').value+': current verified prices are not connected.':route.tollStatus==='noTollRoadReported'?'TomTom did not report toll-road sections. This is not a guarantee of a toll-free journey.':'Toll information unavailable.';$('laneStatus').textContent=route.instructions?.some(s=>s.laneGuidance?.length)?'Provider lane guidance available for some maneuvers (see directions).':'Lane guidance unavailable for this route; follow road markings.';speedAtRoute();$('routeLanguageStatus').textContent='Route instructions requested in '+$('language').selectedOptions[0].textContent+'. Actual language depends on TomTom support; check the text before relying on voice.';refreshDirections();}
+
 $('route').onclick=async()=>{if(!selected.from||!selected.to){status('Search for a starting point and destination.');return;}status('Finding driving routes…');try{const a=selected.from,b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(a.lng+','+a.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat)+'&language='+encodeURIComponent($('language').value));routes=d.routes?.length?d.routes:[d];$('destinationTitle').textContent=selected.to.name;$('routeCount').textContent=routes.length+' available';const options=$('routeOptions');options.replaceChildren();routes.forEach((r,i)=>{const btn=document.createElement('button');btn.className='route-option';const title=document.createElement('small');title.textContent=i===0?'FASTEST':'ALTERNATIVE '+i;const time=document.createElement('strong');time.textContent=Math.round(r.travelMinutes)+' min';const dist=document.createElement('span');dist.textContent=r.distanceKm.toFixed(1)+' km · '+(r.tollStatus==='tollRoad'?'Toll road detected':r.tollStatus==='noTollRoadReported'?'No toll road reported':'Toll status unknown');btn.append(title,time,dist);btn.onclick=()=>renderRoute(i);options.appendChild(btn);});$('searchPanel').hidden=true;$('routeSheet').hidden=false;renderRoute(0);status('Routes ready.');}catch(e){status('Route unavailable: '+e.message);}};
 function distanceMeters(a,b){const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 12742000*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 function say(message){if(!$('voice').checked||!('speechSynthesis'in window)||!message)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(message);u.lang=$('voiceLanguage').value;u.volume=Number($('voiceVolume').value)/100;u.rate=.95;const v=speechSynthesis.getVoices();const lang=u.lang.toLowerCase();u.voice=v.find(x=>x.lang.toLowerCase()===lang)||v.find(x=>x.lang.toLowerCase().split('-')[0]===lang.split('-')[0])||null;speechSynthesis.speak(u);}
 function stopNavigation(){navSession++;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: stopped';offRouteSamples=0;reroutePending=false;$('rerouteState').textContent='';if(navWatch!==null){navigator.geolocation.clearWatch(navWatch);navWatch=null;}if(navMarker){map.removeLayer(navMarker);navMarker=null;}if(navAccuracy){map.removeLayer(navAccuracy);navAccuracy=null;}$('navOverlay').hidden=true;$('routeSheet').hidden=false;if('speechSynthesis'in window)speechSynthesis.cancel();status('Navigation stopped.');}
-async function rerouteFrom(here,session){if(reroutePending||!selected.to||!routes[active])return;reroutePending=true;lastReroute=Date.now();$('rerouteState').textContent='Finding updated route…';try{const b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(here.lng+','+here.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat));if(session!==navSession)return;const next=d.routes?.[0];if(!next?.points?.length)throw Error('No new route');routes=[next];active=0;lastSpokenStep=-1;offRouteSamples=0;offRouteNotified=false;lastGpsTimestamp=0;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(next.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7}).addTo(map);if(threeD)sync3dRoute();$('navEta').textContent=Math.round(next.travelMinutes)+' min · '+next.distanceKm.toFixed(1)+' km planned';$('rerouteState').textContent='Route updated';say('Route updated. Follow the new route when safe.');}catch(e){if(session===navSession)$('rerouteState').textContent='Could not reroute; follow road signs';}finally{reroutePending=false;}}
+async function rerouteFrom(here,session){if(reroutePending||!selected.to||!routes[active])return;reroutePending=true;lastReroute=Date.now();$('rerouteState').textContent='Finding updated route…';try{const b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(here.lng+','+here.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat)+'&language='+encodeURIComponent($('language').value));if(session!==navSession)return;const next=d.routes?.[0];if(!next?.points?.length)throw Error('No new route');routes=[next];active=0;lastSpokenStep=-1;offRouteSamples=0;offRouteNotified=false;lastGpsTimestamp=0;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(next.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7}).addTo(map);if(threeD)sync3dRoute();$('navEta').textContent=Math.round(next.travelMinutes)+' min · '+next.distanceKm.toFixed(1)+' km planned';$('rerouteState').textContent='Route updated';say('Route updated. Follow the new route when safe.');}catch(e){if(session===navSession)$('rerouteState').textContent='Could not reroute; follow road signs';}finally{reroutePending=false;}}
 async function checkRouteIncidents(here,accuracy,route,closest,session){if(!document.hidden&&!incidentBusy&&$('incidentAlerts').checked&&Date.now()-lastIncidentCheck>=60000&&accuracy<65){lastIncidentCheck=Date.now();incidentBusy=true;try{const span=.015,west=Math.max(-180,here.lng-span),east=Math.min(180,here.lng+span),south=Math.max(-90,here.lat-span),north=Math.min(90,here.lat+span);const data=await request('/api/traffic?bbox='+encodeURIComponent([west,south,east,north].join(',')));if(session!==navSession)return;const points=route.points;let ahead=0;const path=[];for(let i=closest;i<points.length&&ahead<1500;i++){const p={lat:points[i].latitude,lng:points[i].longitude};path.push(p);if(i+1<points.length)ahead+=distanceMeters(p,{lat:points[i+1].latitude,lng:points[i+1].longitude});}let count=0;for(const item of data.incidents||[]){const g=item.geometry;if(g?.type!=='Point'||!Array.isArray(g.coordinates))continue;const location={lat:Number(g.coordinates[1]),lng:Number(g.coordinates[0])};if(!Number.isFinite(location.lat)||!Number.isFinite(location.lng))continue;const nearest=path.reduce((best,p)=>Math.min(best,distanceMeters(p,location)),Infinity);if(nearest>45)continue;count++;const description=String(item.description||'Reported traffic incident').slice(0,110);const key=[location.lat.toFixed(4),location.lng.toFixed(4),description].join('|');if(!incidentSeen.has(key)){incidentSeen.add(key);if(incidentSeen.size>100)incidentSeen.clear();$('incidentStatus').textContent='Reported traffic incident near route';say('Reported traffic incident may be ahead. Check road signs.');}}if(!count)$('incidentStatus').textContent='No nearby point incidents reported';}catch(e){if(session===navSession)$('incidentStatus').textContent='Traffic alerts unavailable';}finally{incidentBusy=false;}}}
 function routeProgress(here,points){
  const rad=Math.PI/180,latScale=111195,lonScale=latScale*Math.cos(here.lat*rad);
@@ -68,9 +69,9 @@ function updatePosition(pos){
  const step=steps[stepIndex];
  if(step){
   const delta=Math.max(0,Math.round(Number(step.distanceMeters)-travelled));
-  $('nextTurn').textContent=(delta>0?delta+' m · ':'')+(step.message||'Continue');
+  $('nextTurn').textContent=(delta>0?delta+' m · ':'')+localizedStep(step).primary;
   $('navProgress').textContent='GPS guidance · Position accuracy ±'+Math.round(accuracy)+' m';
-  if(stepIndex!==lastSpokenStep&&delta<180&&accuracy<40){lastSpokenStep=stepIndex;say(step.message||'Continue');}
+  if(stepIndex!==lastSpokenStep&&delta<180&&accuracy<40){lastSpokenStep=stepIndex;say(localizedStep(step).primary);}
  }else{$('nextTurn').textContent='Follow planned route';$('navProgress').textContent='GPS active · Detailed directions unavailable';}
  if(remaining<45&&min<35){$('nextTurn').textContent='Approaching destination';$('navProgress').textContent='Check destination access and road signs';}
 }
@@ -243,3 +244,64 @@ $('speedDataFile').addEventListener('change',async e=>{
   speedAtRoute();
  }catch(err){$('speedDataStatus').textContent='Import failed: '+err.message;}
 });
+
+/* Lane arrows only represent explicit provider lane direction fields. */
+const laneSymbols={LEFT:'↰',SLIGHT_LEFT:'↖',SHARP_LEFT:'↶',RIGHT:'↱',SLIGHT_RIGHT:'↗',SHARP_RIGHT:'↷',STRAIGHT:'↑',THROUGH:'↑',UTURN:'↩',U_TURN:'↩'};
+function laneDetails(raw){
+ if(!Array.isArray(raw))return [];
+ return raw.slice(0,12).map(l=>{
+  if(!l||typeof l!=='object')return null;
+  const directions=Array.isArray(l.directions)?l.directions:Array.isArray(l.indications)?l.indications:[];
+  const arrows=directions.map(d=>laneSymbols[String(typeof d==='string'?d:d?.direction||'').toUpperCase().replace(/[- ]/g,'_')]).filter(Boolean);
+  if(!arrows.length)return null;
+  return {arrows:[...new Set(arrows)].join(' '),recommended:l.recommended===true||l.isRecommended===true||l.active===true};
+ }).filter(Boolean);
+}
+function appendLanes(parent,step){
+ const lanes=laneDetails(step.laneGuidance);
+ if(!lanes.length)return false;
+ const wrap=document.createElement('div');wrap.className='lane-arrows';wrap.setAttribute('aria-label','Provider lane indications, verify against road signs');
+ for(const lane of lanes){const item=document.createElement('span');item.className='lane-arrow'+(lane.recommended?' recommended':'');item.textContent=lane.arrows;wrap.appendChild(item);}
+ parent.appendChild(wrap);return true;
+}
+const directionLabels={
+ en:{LEFT:'Turn left',RIGHT:'Turn right',STRAIGHT:'Continue straight',KEEP_LEFT:'Keep left',KEEP_RIGHT:'Keep right',UTURN:'Make a U-turn',ROUNDABOUT:'Enter roundabout',ARRIVE:'You have arrived'},
+ ms:{LEFT:'Belok kiri',RIGHT:'Belok kanan',STRAIGHT:'Teruskan perjalanan',KEEP_LEFT:'Kekal di kiri',KEEP_RIGHT:'Kekal di kanan',UTURN:'Buat pusingan U',ROUNDABOUT:'Masuk bulatan',ARRIVE:'Anda telah tiba'},
+ zh:{LEFT:'左转',RIGHT:'右转',STRAIGHT:'继续直行',KEEP_LEFT:'靠左行驶',KEEP_RIGHT:'靠右行驶',UTURN:'掉头',ROUNDABOUT:'进入环岛',ARRIVE:'您已到达'},
+ ta:{LEFT:'இடப்புறம் திரும்பவும்',RIGHT:'வலப்புறம் திரும்பவும்',STRAIGHT:'நேராகச் செல்லவும்',KEEP_LEFT:'இடப்புறமாகச் செல்லவும்',KEEP_RIGHT:'வலப்புறமாகச் செல்லவும்',UTURN:'யூ-டர்ன் செய்யவும்',ROUNDABOUT:'சுற்றுவட்டத்திற்குள் செல்லவும்',ARRIVE:'நீங்கள் வந்துவிட்டீர்கள்'}
+};
+function actionCode(maneuver){
+ const s=String(maneuver||'').toUpperCase().replace(/([a-z])([A-Z])/g,'$1_$2').replace(/[- ]/g,'_');
+ if(/ARRIVE|DESTINATION/.test(s))return 'ARRIVE';
+ if(/ROUNDABOUT/.test(s))return 'ROUNDABOUT';
+ if(/U_TURN|UTURN/.test(s))return 'UTURN';
+ if(/KEEP.*LEFT|BEAR.*LEFT/.test(s))return 'KEEP_LEFT';
+ if(/KEEP.*RIGHT|BEAR.*RIGHT/.test(s))return 'KEEP_RIGHT';
+ if(/LEFT/.test(s))return 'LEFT';
+ if(/RIGHT/.test(s))return 'RIGHT';
+ if(/STRAIGHT|FOLLOW|CONTINUE/.test(s))return 'STRAIGHT';
+ return null;
+}
+function localizedStep(step){
+ const lang=$('language').value,code=actionCode(step.maneuver),label=code&&directionLabels[lang]?.[code];
+ // Avoid translating place names, road numbers, exits, or unrecognized maneuvers.
+ return label?{primary:label,original:step.message||'',localized:lang!=='en'}:{primary:step.message||'Continue',original:'',localized:false};
+}
+function refreshDirections(){
+ const route=routes[active];if(!route)return;
+ const list=$('instructions');list.replaceChildren();
+ let laneCount=0,localizedCount=0;
+ for(const step of (route.instructions||[]).slice(0,50)){
+  const div=document.createElement('div');div.className='instruction';
+  const t=localizedStep(step);if(t.localized)localizedCount++;
+  const title=document.createElement('div');title.textContent=t.primary+(Number(step.distanceMeters)>0?' · '+Math.round(step.distanceMeters)+' m':'');div.appendChild(title);
+  if(t.localized&&t.original){const original=document.createElement('small');original.className='original-direction';original.textContent=t.original;div.appendChild(original);}
+  if(appendLanes(div,step))laneCount++;
+  list.appendChild(div);
+ }
+ if(!route.instructions?.length)list.textContent='Detailed turn instructions unavailable from provider.';
+ $('laneStatus').textContent=laneCount?laneCount+' maneuvers with usable provider lane arrows. Confirm with road markings.':'No usable lane directions supplied by provider. No arrows inferred.';
+ $('routeLanguageStatus').textContent=$('language').value==='en'?'English route instructions.':'Localized maneuver labels: '+localizedCount+'; original provider text retained where available. Road names and unsupported maneuvers are not translated.';
+}
+
+$('language').addEventListener('change',()=>{if(routes[active])refreshDirections();});
