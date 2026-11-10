@@ -45,3 +45,5 @@
 .nav-stats{flex-wrap:wrap}#voiceVolume{vertical-align:middle;max-width:145px;accent-color:#ffca20}#speedLimit{opacity:.85}
 
 .reroute-controls{flex-wrap:wrap}#incidentStatus{font-size:11px;color:#e4f5e8}
+
+#map3d{position:absolute;inset:0;background:#101929}#map3d[hidden]{display:none}#mode3d[aria-pressed="true"]{background:#15a966;color:#fff;outline:2px solid #e8d05b}.maplibregl-ctrl-attrib{font-size:10px}.maplibregl-canvas{outline:none}
