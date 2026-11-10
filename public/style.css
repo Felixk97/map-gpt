@@ -55,3 +55,5 @@
 #awas[aria-pressed="true"]{background:#695117;outline:2px solid #ffcf4b}#awasStatus{font-size:11px;color:#ffe3a1}
 
 #speedDataFile{max-width:100%;font-size:12px;color:#d7e7f1}.lane-data{display:block;margin-top:6px;color:#ffdc78;font-size:11px}#speedRouteStatus{color:#c3e9d4}
+
+.lane-arrows{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.lane-arrow{border:1px solid #617287;border-radius:7px;padding:6px 10px;background:#253447;font-size:22px;color:#c9d2de}.lane-arrow.recommended{background:#11663e;color:white;border-color:#35d38b}.original-direction{display:block;color:#a7b6c7;margin-top:4px;font-size:11px}
