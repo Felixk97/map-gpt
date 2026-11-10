@@ -13,7 +13,7 @@ for(const kind of ['from','to']){const input=$(kind),list=$(kind+'-suggestions')
 $('swap').onclick=()=>{const a=selected.from,b=selected.to;if(!a||!b){status('Choose both locations first.');return;}mark('from',b,b.name);mark('to',a,a.name);clearRoute();};
 function locate(){if(!navigator.geolocation){status('Location not supported.');return;}status('Requesting location permission…');navigator.geolocation.getCurrentPosition(p=>{mark('from',{lat:p.coords.latitude,lng:p.coords.longitude},'My current location');map.setView([p.coords.latitude,p.coords.longitude],13);status('Current location selected.');},()=>status('Location unavailable. Check permissions.'),{enableHighAccuracy:true,timeout:10000});}
 $('locate').onclick=locate;$('useLocation').onclick=locate;
-function renderRoute(index){active=index;const route=routes[index];if(!route)return;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(route.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7,opacity:.95}).addTo(map);if(threeD){sync3dRoute();if(driveCamera)drivePreview();else fit3dRoute();}map.fitBounds(routeLayer.getBounds(),{padding:[45,45]});for(const [i,el] of [...$('routeOptions').children].entries())el.classList.toggle('active',i===index);$('routeInfo').textContent=route.distanceKm.toFixed(1)+' km · '+Math.round(route.travelMinutes)+' min estimated.'; $('tollInfo').textContent=route.tollStatus==='tollRoad'?'TomTom reports '+route.tollRoadSections+' toll-road section(s). Fare unavailable for vehicle class '+$('vehicleClass').value+': current verified prices are not connected.':route.tollStatus==='noTollRoadReported'?'TomTom did not report toll-road sections. This is not a guarantee of a toll-free journey.':'Toll information unavailable.';$('laneStatus').textContent=route.instructions?.some(s=>s.laneGuidance?.length)?'Provider lane guidance available for some maneuvers (see directions).':'Lane guidance unavailable for this route; follow road markings.';const list=$('instructions');list.replaceChildren();if(route.instructions?.length){for(const step of route.instructions.slice(0,25)){const div=document.createElement('div');div.className='instruction';div.textContent=(step.message||'Continue')+(step.distanceMeters?' · '+Math.round(step.distanceMeters)+' m':'')+(step.laneGuidance?.length?' · Lane data supplied by provider':'');list.appendChild(div);}}else list.textContent='Detailed turn instructions are not available from this route response.';}
+function renderRoute(index){active=index;const route=routes[index];if(!route)return;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(route.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7,opacity:.95}).addTo(map);if(threeD){sync3dRoute();if(driveCamera)drivePreview();else fit3dRoute();}map.fitBounds(routeLayer.getBounds(),{padding:[45,45]});for(const [i,el] of [...$('routeOptions').children].entries())el.classList.toggle('active',i===index);$('routeInfo').textContent=route.distanceKm.toFixed(1)+' km · '+Math.round(route.travelMinutes)+' min estimated.'; $('tollInfo').textContent=route.tollStatus==='tollRoad'?'TomTom reports '+route.tollRoadSections+' toll-road section(s). Fare unavailable for vehicle class '+$('vehicleClass').value+': current verified prices are not connected.':route.tollStatus==='noTollRoadReported'?'TomTom did not report toll-road sections. This is not a guarantee of a toll-free journey.':'Toll information unavailable.';$('laneStatus').textContent=route.instructions?.some(s=>s.laneGuidance?.length)?'Provider lane guidance available for some maneuvers (see directions).':'Lane guidance unavailable for this route; follow road markings.';speedAtRoute();$('routeLanguageStatus').textContent='Route instructions requested in '+$('language').selectedOptions[0].textContent+'. Actual language depends on TomTom support; check the text before relying on voice.';const list=$('instructions');list.replaceChildren();if(route.instructions?.length){for(const step of route.instructions.slice(0,25)){const div=document.createElement('div');div.className='instruction';div.textContent=(step.message||'Continue')+(step.distanceMeters?' · '+Math.round(step.distanceMeters)+' m':'');if(step.laneGuidance?.length){const lanes=document.createElement('small');lanes.className='lane-data';lanes.textContent='Lane guidance provided for this maneuver ('+step.laneGuidance.length+' entries). Follow actual road signs.';div.appendChild(lanes);}list.appendChild(div);}}else list.textContent='Detailed turn instructions are not available from this route response.';}
 $('route').onclick=async()=>{if(!selected.from||!selected.to){status('Search for a starting point and destination.');return;}status('Finding driving routes…');try{const a=selected.from,b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(a.lng+','+a.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat)+'&language='+encodeURIComponent($('language').value));routes=d.routes?.length?d.routes:[d];$('destinationTitle').textContent=selected.to.name;$('routeCount').textContent=routes.length+' available';const options=$('routeOptions');options.replaceChildren();routes.forEach((r,i)=>{const btn=document.createElement('button');btn.className='route-option';const title=document.createElement('small');title.textContent=i===0?'FASTEST':'ALTERNATIVE '+i;const time=document.createElement('strong');time.textContent=Math.round(r.travelMinutes)+' min';const dist=document.createElement('span');dist.textContent=r.distanceKm.toFixed(1)+' km · '+(r.tollStatus==='tollRoad'?'Toll road detected':r.tollStatus==='noTollRoadReported'?'No toll road reported':'Toll status unknown');btn.append(title,time,dist);btn.onclick=()=>renderRoute(i);options.appendChild(btn);});$('searchPanel').hidden=true;$('routeSheet').hidden=false;renderRoute(0);status('Routes ready.');}catch(e){status('Route unavailable: '+e.message);}};
 function distanceMeters(a,b){const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 12742000*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 function say(message){if(!$('voice').checked||!('speechSynthesis'in window)||!message)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(message);u.lang=$('voiceLanguage').value;u.volume=Number($('voiceVolume').value)/100;u.rate=.95;const v=speechSynthesis.getVoices();const lang=u.lang.toLowerCase();u.voice=v.find(x=>x.lang.toLowerCase()===lang)||v.find(x=>x.lang.toLowerCase().split('-')[0]===lang.split('-')[0])||null;speechSynthesis.speak(u);}
@@ -43,6 +43,8 @@ function updatePosition(pos){
  if(!navAccuracy)navAccuracy=L.circle([here.lat,here.lng],{radius:Number.isFinite(accuracy)?accuracy:100,color:'#338cf7',weight:1,fillOpacity:.08}).addTo(map);else navAccuracy.setLatLng([here.lat,here.lng]).setRadius(Number.isFinite(accuracy)?accuracy:100);
  if(followGPS&&!threeD&&distanceMeters(here,map.getCenter())>20)map.setView([here.lat,here.lng],Math.max(15,map.getZoom()),{animate:false});
  const progress=routeProgress(here,route.points),closest=progress.index,min=progress.distance,remaining=progress.remaining;
+ const speedMatch=Number.isFinite(accuracy)&&accuracy<30?matchedSpeed(here):null;
+ $('speedLimit').textContent=speedMatch?'Road dataset: '+speedMatch.speed+' km/h (unverified; obey posted signs)':'Speed limit: unavailable (no reliable match)';
  if(threeD&&driveCamera&&driveCameraFollowing&&threeDReady&&Date.now()-lastCameraMove>850){const heading=Number.isFinite(pos.coords.heading)&&Number.isFinite(pos.coords.speed)&&pos.coords.speed>2?pos.coords.heading:routeHeading(route.points,closest);setDriveCamera(here,heading,true);lastCameraMove=Date.now();}
  $('navDistance').textContent='Remaining: '+(remaining>=1000?(remaining/1000).toFixed(1)+' km':Math.round(remaining)+' m');
  $('navSpeed').textContent=Number.isFinite(pos.coords.speed)?'GPS speed: '+Math.max(0,Math.round(pos.coords.speed*3.6))+' km/h':'GPS speed: unavailable';
@@ -197,3 +199,47 @@ function checkAwas(here,accuracy,route,closest){
   awasSeen.add(c.id);
  }
 }
+
+/* Phase 3: local, explicitly sourced GeoJSON speed limits. No inferred legal limits. */
+let speedSegments=[];
+function parseSpeedKmh(value){
+ if(typeof value==='number')return Number.isFinite(value)&&value>=5&&value<=150?value:null;
+ if(typeof value!=='string')return null;
+ const match=value.trim().match(/^(\d{1,3})(?:\s*(km\/h|kmh|kph|mph))?$/i);
+ if(!match)return null;
+ const speed=Number(match[1])*(match[2]?.toLowerCase()==='mph'?1.609344:1);
+ return speed>=5&&speed<=150?Math.round(speed):null;
+}
+function segmentDistance(point,a,b){
+ const scale=111195,cos=Math.cos(point.lat*Math.PI/180),ax=(a[0]-point.lng)*scale*cos,ay=(a[1]-point.lat)*scale,bx=(b[0]-point.lng)*scale*cos,by=(b[1]-point.lat)*scale,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));
+ return Math.hypot(ax+t*dx,ay+t*dy);
+}
+function matchedSpeed(point){
+ let closest=Infinity,result=null;
+ for(const seg of speedSegments){const d=segmentDistance(point,seg.a,seg.b);if(d<closest){closest=d;result=seg;}}
+ return closest<=18?result:null;
+}
+function speedAtRoute(){
+ const route=routes[active];
+ if(!route?.points?.length){$('speedRouteStatus').textContent='Speed limits on route: unavailable.';return;}
+ let matched=0,unknown=0;const values=new Set();
+ const pts=route.points,step=Math.max(1,Math.ceil(pts.length/300));
+ for(let i=0;i<pts.length;i+=step){const seg=matchedSpeed({lat:pts[i].latitude,lng:pts[i].longitude});if(seg){matched++;values.add(seg.speed);}else unknown++;}
+ $('speedRouteStatus').textContent=speedSegments.length?'Local road data matched '+matched+' sampled route points; '+unknown+' unmatched. Values: '+([...values].sort((a,b)=>a-b).join(', ')||'none')+' km/h. Check posted signs.':'Speed limits on route: unavailable — import a verified GeoJSON dataset.';
+}
+$('speedDataFile').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ if(file.size>12*1024*1024){$('speedDataStatus').textContent='File too large (12 MB maximum).';return;}
+ try{
+  const data=JSON.parse(await file.text());if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.features.length>30000)throw Error('Expected GeoJSON FeatureCollection with up to 30,000 features');
+  const segments=[];
+  for(const feature of data.features){
+   const speed=parseSpeedKmh(feature.properties?.maxspeed);if(speed===null)continue;
+   const geometry=feature.geometry||{},lines=geometry.type==='LineString'?[geometry.coordinates]:geometry.type==='MultiLineString'?geometry.coordinates:[];
+   for(const line of lines){if(!Array.isArray(line)||line.length>10000)continue;for(let i=1;i<line.length;i++){const a=line[i-1],b=line[i];if(!Array.isArray(a)||!Array.isArray(b)||a.length<2||b.length<2||![a[0],a[1],b[0],b[1]].every(Number.isFinite))continue;segments.push({a,b,speed});if(segments.length>100000)throw Error('Dataset has too many road segments');}}
+  }
+  speedSegments=segments;
+  $('speedDataStatus').textContent=segments.length+' road segments with numeric maxspeed loaded locally. Accuracy depends on source and direction.';
+  speedAtRoute();
+ }catch(err){$('speedDataStatus').textContent='Import failed: '+err.message;}
+});
