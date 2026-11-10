@@ -51,7 +51,7 @@ function updatePosition(pos){
  const etaMinutes=Math.ceil(remaining/1000/speed*60);
  $('navEta').textContent='Approx. '+etaMinutes+' min remaining · '+(remaining/1000).toFixed(1)+' km';
  if(!Number.isFinite(accuracy)||accuracy>=60){$('navProgress').textContent='GPS accuracy low — route guidance may be unreliable';return;}
- checkRouteIncidents(here,accuracy,route,closest,navSession);
+ checkRouteIncidents(here,accuracy,route,closest,navSession);checkAwas(here,accuracy,route,closest);
  if(min>Math.max(85,accuracy*2)){
   offRouteSamples++;$('navProgress').textContent='Possibly off route — check road signs';
   if(!offRouteNotified){say('You may be off the planned route. Check your surroundings.');offRouteNotified=true;}
@@ -73,7 +73,7 @@ function updatePosition(pos){
  if(remaining<45&&min<35){$('nextTurn').textContent='Approaching destination';$('navProgress').textContent='Check destination access and road signs';}
 }
 
-$('startNav').onclick=()=>{if(!routes[active])return;if(!navigator.geolocation){status('GPS location is not supported by this browser.');return;}$('routeSheet').hidden=true;$('navOverlay').hidden=false;$('navDestination').textContent=selected.to?.name||'Destination';$('navEta').textContent=Math.round(routes[active].travelMinutes)+' min · '+routes[active].distanceKm.toFixed(1)+' km planned';$('nextTurn').textContent='Waiting for GPS…';$('navProgress').textContent='Allow location permission to begin';lastSpokenStep=-1;offRouteNotified=false;offRouteSamples=0;lastGpsTimestamp=0;navSession++;lastIncidentCheck=0;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: waiting';followGPS=true;
+$('startNav').onclick=()=>{if(!routes[active])return;if(!navigator.geolocation){status('GPS location is not supported by this browser.');return;}$('routeSheet').hidden=true;$('navOverlay').hidden=false;$('navDestination').textContent=selected.to?.name||'Destination';$('navEta').textContent=Math.round(routes[active].travelMinutes)+' min · '+routes[active].distanceKm.toFixed(1)+' km planned';$('nextTurn').textContent='Waiting for GPS…';$('navProgress').textContent='Allow location permission to begin';lastSpokenStep=-1;offRouteNotified=false;offRouteSamples=0;lastGpsTimestamp=0;navSession++;lastIncidentCheck=0;incidentSeen.clear();awasSeen.clear();$('incidentStatus').textContent='Traffic alerts: waiting';followGPS=true;
 try{navWatch=navigator.geolocation.watchPosition(updatePosition,e=>{const message=e.code===1?'Location permission denied':'GPS unavailable. Check location settings or signal.';$('navProgress').textContent=message;status(message);},{enableHighAccuracy:true,maximumAge:1500,timeout:15000});}catch(e){$('navProgress').textContent='Could not start GPS';status('GPS could not be started.');}};
 $('endNav').onclick=stopNavigation;
 $('recenterNav').onclick=()=>{followGPS=true;driveCameraFollowing=true;if(navMarker){const p=navMarker.getLatLng();if(threeD&&driveCamera&&threeDReady){const route=routes[active];setDriveCamera(p,route?.points?.length>1?routeHeading(route.points,0):0);}else map.setView(p,16);}};
@@ -154,3 +154,46 @@ $('saveHazard').onclick=()=>{const c=map.getCenter();const kind=$('hazardType').
 $('vehicleClass').onchange=()=>{if(routes[active])renderRoute(active);};
 $('exportHazards').onclick=()=>{if(!hazardDrafts.length){status('No local hazard drafts to export.');return;}const blob=new Blob([JSON.stringify({schema:'lapan-hazard-drafts-v1',reports:hazardDrafts},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='lapan-hazard-drafts.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status('Local draft reports exported. Nothing was submitted.');};
 $('language').addEventListener('change',()=>{const language={'en':'en-GB','ms':'ms-MY','zh':'zh-CN','ta':'ta-IN'}[$('language').value];$('voiceLanguage').value=language;});
+
+/* JPJ AWAS: verified official records only. Empty dataset is intentional. */
+const awasLayer=L.layerGroup().addTo(map);let awasRecords=[],awasEnabled=false,awasLoaded=false,awasSeen=new Set();
+async function loadAwas(){
+ const response=await fetch('/data/jpj-awas.json',{cache:'no-store'});
+ if(!response.ok)throw Error('AWAS dataset unavailable');
+ const data=await response.json();
+ if(data.schema!=='lapan-jpj-awas-v1'||!Array.isArray(data.cameras))throw Error('AWAS dataset format invalid');
+ awasRecords=data.cameras.filter(c=>Number.isFinite(c.latitude)&&Number.isFinite(c.longitude)&&Math.abs(c.latitude)<=90&&Math.abs(c.longitude)<=180&&['speed','traffic-light'].includes(c.type)&&c.verified===true&&typeof c.sourceUrl==='string'&&/^https:\/\//.test(c.sourceUrl)&&/^\d{4}-\d{2}-\d{2}$/.test(c.verifiedDate||''));
+ awasLoaded=true;return awasRecords;
+}
+function drawAwas(){
+ awasLayer.clearLayers();
+ if(!awasEnabled)return;
+ for(const c of awasRecords){
+  const node=document.createElement('div');
+  const heading=document.createElement('strong');heading.textContent='JPJ AWAS · '+(c.type==='speed'?'Speed enforcement':'Traffic-light enforcement');
+  const description=document.createElement('p');description.textContent=(c.road||'Road unspecified')+(c.direction?' · '+c.direction:'')+' · Verified '+c.verifiedDate;
+  const link=document.createElement('a');link.href=c.sourceUrl;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Official source';
+  node.append(heading,description,link);
+  L.circleMarker([c.latitude,c.longitude],{radius:8,color:'#ffcb36',weight:3,fillColor:'#222',fillOpacity:1}).bindPopup(node).addTo(awasLayer);
+ }
+}
+$('awas').onclick=async()=>{
+ awasEnabled=!awasEnabled;$('awas').setAttribute('aria-pressed',String(awasEnabled));
+ if(awasEnabled&&!awasLoaded){try{await loadAwas();}catch(e){awasEnabled=false;$('awas').setAttribute('aria-pressed','false');status(e.message);return;}}
+ drawAwas();const msg=awasEnabled?'JPJ AWAS: '+awasRecords.length+' verified locations available.':'AWAS layer hidden.';
+ status(msg);$('awasStatus').textContent=msg;
+};
+function checkAwas(here,accuracy,route,closest){
+ if(!awasEnabled||!awasLoaded||!awasRecords.length||accuracy>=40)return;
+ const points=route.points;let ahead=0;
+ const segments=[];
+ for(let i=closest;i<points.length-1&&ahead<1200;i++){const a={lat:points[i].latitude,lng:points[i].longitude},b={lat:points[i+1].latitude,lng:points[i+1].longitude};segments.push([a,b]);ahead+=distanceMeters(a,b);}
+ for(const c of awasRecords){
+  if(awasSeen.has(c.id)||distanceMeters(here,{lat:c.latitude,lng:c.longitude})>1000)continue;
+  const near=segments.some(([a,b])=>{const latScale=111195,lonScale=latScale*Math.cos(c.latitude*Math.PI/180);const ax=(a.lng-c.longitude)*lonScale,ay=(a.lat-c.latitude)*latScale,bx=(b.lng-c.longitude)*lonScale,by=(b.lat-c.latitude)*latScale,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));return Math.hypot(ax+t*dx,ay+t*dy)<35;});
+  if(!near)continue;
+  // No direction matching is available yet. Avoid voice alerts on opposing carriageways.
+  $('awasStatus').textContent='Verified AWAS camera near route · Check road signs';
+  awasSeen.add(c.id);
+ }
+}
