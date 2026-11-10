@@ -1,0 +1,11 @@
+{
+  "name": "lapan-malaysia",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"console.log('Lapan static site ready')\""
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
+  }
+}
