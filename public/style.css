@@ -39,3 +39,5 @@
 .nav-bottom{gap:8px}.nav-bottom button{white-space:nowrap}
 #recenterNav{background:#263f56;border-color:#4c7795}
 @media(max-width:420px){.nav-bottom{flex-wrap:wrap}.nav-bottom>div{width:100%}.nav-bottom button{flex:1}}
+
+.reroute-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;margin-top:10px;color:#ddf5e6}.reroute-controls input{accent-color:#12bd6e}.reroute-controls span{font-size:10px;color:#e6f5ea}
