@@ -29,3 +29,8 @@
 .toast{background:#20262e;border:1px solid #3d4753}
 .leaflet-control-zoom a{background:#202731!important;border-color:#404b57!important}
 @media(max-width:760px){.header{height:64px}.shell{height:calc(100dvh - 64px)}.search-panel{top:61px}.route-sheet{max-height:68%;background:#1c222b}.map-tools{top:70px}.explore-badge{top:14px}}
+
+#language{background:#28323e;border:1px solid #4c5765;border-radius:9px;color:#fff;padding:9px;max-width:110px;margin-left:auto;margin-right:9px}
+#hazardPanel{top:75px}
+#hazardPanel select{width:100%;padding:11px;background:#293340;color:white;border:1px solid #505965;border-radius:9px}
+@media(max-width:760px){#language{max-width:82px;font-size:12px;margin-right:5px}#hazardPanel{top:61px}}
