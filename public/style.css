@@ -47,3 +47,5 @@
 .reroute-controls{flex-wrap:wrap}#incidentStatus{font-size:11px;color:#e4f5e8}
 
 #map3d{position:absolute;inset:0;background:#101929}#map3d[hidden]{display:none}#mode3d[aria-pressed="true"]{background:#15a966;color:#fff;outline:2px solid #e8d05b}.maplibregl-ctrl-attrib{font-size:10px}.maplibregl-canvas{outline:none}
+
+#driveView[aria-pressed="true"]{background:#175c43;color:#fff;outline:2px solid #ffcc32}#driveView{font-size:19px}.maplibregl-control-container{z-index:5}
