@@ -34,3 +34,8 @@
 #hazardPanel{top:75px}
 #hazardPanel select{width:100%;padding:11px;background:#293340;color:white;border:1px solid #505965;border-radius:9px}
 @media(max-width:760px){#language{max-width:82px;font-size:12px;margin-right:5px}#hazardPanel{top:61px}}
+
+.nav-stats{display:flex;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;color:#d4f4e2}
+.nav-bottom{gap:8px}.nav-bottom button{white-space:nowrap}
+#recenterNav{background:#263f56;border-color:#4c7795}
+@media(max-width:420px){.nav-bottom{flex-wrap:wrap}.nav-bottom>div{width:100%}.nav-bottom button{flex:1}}
