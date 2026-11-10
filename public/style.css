@@ -41,3 +41,5 @@
 @media(max-width:420px){.nav-bottom{flex-wrap:wrap}.nav-bottom>div{width:100%}.nav-bottom button{flex:1}}
 
 .reroute-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;margin-top:10px;color:#ddf5e6}.reroute-controls input{accent-color:#12bd6e}.reroute-controls span{font-size:10px;color:#e6f5ea}
+
+.nav-stats{flex-wrap:wrap}#voiceVolume{vertical-align:middle;max-width:145px;accent-color:#ffca20}#speedLimit{opacity:.85}
