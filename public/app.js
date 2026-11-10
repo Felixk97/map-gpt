@@ -18,25 +18,61 @@ $('route').onclick=async()=>{if(!selected.from||!selected.to){status('Search for
 function distanceMeters(a,b){const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 12742000*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 function say(message){if(!$('voice').checked||!('speechSynthesis'in window)||!message)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(message);u.lang=$('voiceLanguage').value;u.volume=Number($('voiceVolume').value)/100;u.rate=.95;const v=speechSynthesis.getVoices();const lang=u.lang.toLowerCase();u.voice=v.find(x=>x.lang.toLowerCase()===lang)||v.find(x=>x.lang.toLowerCase().split('-')[0]===lang.split('-')[0])||null;speechSynthesis.speak(u);}
 function stopNavigation(){navSession++;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: stopped';offRouteSamples=0;reroutePending=false;$('rerouteState').textContent='';if(navWatch!==null){navigator.geolocation.clearWatch(navWatch);navWatch=null;}if(navMarker){map.removeLayer(navMarker);navMarker=null;}if(navAccuracy){map.removeLayer(navAccuracy);navAccuracy=null;}$('navOverlay').hidden=true;$('routeSheet').hidden=false;if('speechSynthesis'in window)speechSynthesis.cancel();status('Navigation stopped.');}
-async function rerouteFrom(here,session){if(reroutePending||!selected.to||!routes[active])return;reroutePending=true;lastReroute=Date.now();$('rerouteState').textContent='Finding updated route…';try{const b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(here.lng+','+here.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat));if(session!==navSession)return;const next=d.routes?.[0];if(!next?.points?.length)throw Error('No new route');routes=[next];active=0;lastSpokenStep=-1;offRouteSamples=0;offRouteNotified=false;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(next.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7}).addTo(map);$('navEta').textContent=Math.round(next.travelMinutes)+' min · '+next.distanceKm.toFixed(1)+' km planned';$('rerouteState').textContent='Route updated';say('Route updated. Follow the new route when safe.');}catch(e){if(session===navSession)$('rerouteState').textContent='Could not reroute; follow road signs';}finally{reroutePending=false;}}
+async function rerouteFrom(here,session){if(reroutePending||!selected.to||!routes[active])return;reroutePending=true;lastReroute=Date.now();$('rerouteState').textContent='Finding updated route…';try{const b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(here.lng+','+here.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat));if(session!==navSession)return;const next=d.routes?.[0];if(!next?.points?.length)throw Error('No new route');routes=[next];active=0;lastSpokenStep=-1;offRouteSamples=0;offRouteNotified=false;lastGpsTimestamp=0;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(next.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7}).addTo(map);$('navEta').textContent=Math.round(next.travelMinutes)+' min · '+next.distanceKm.toFixed(1)+' km planned';$('rerouteState').textContent='Route updated';say('Route updated. Follow the new route when safe.');}catch(e){if(session===navSession)$('rerouteState').textContent='Could not reroute; follow road signs';}finally{reroutePending=false;}}
 async function checkRouteIncidents(here,accuracy,route,closest,session){if(!document.hidden&&!incidentBusy&&$('incidentAlerts').checked&&Date.now()-lastIncidentCheck>=60000&&accuracy<65){lastIncidentCheck=Date.now();incidentBusy=true;try{const span=.015,west=Math.max(-180,here.lng-span),east=Math.min(180,here.lng+span),south=Math.max(-90,here.lat-span),north=Math.min(90,here.lat+span);const data=await request('/api/traffic?bbox='+encodeURIComponent([west,south,east,north].join(',')));if(session!==navSession)return;const points=route.points;let ahead=0;const path=[];for(let i=closest;i<points.length&&ahead<1500;i++){const p={lat:points[i].latitude,lng:points[i].longitude};path.push(p);if(i+1<points.length)ahead+=distanceMeters(p,{lat:points[i+1].latitude,lng:points[i+1].longitude});}let count=0;for(const item of data.incidents||[]){const g=item.geometry;if(g?.type!=='Point'||!Array.isArray(g.coordinates))continue;const location={lat:Number(g.coordinates[1]),lng:Number(g.coordinates[0])};if(!Number.isFinite(location.lat)||!Number.isFinite(location.lng))continue;const nearest=path.reduce((best,p)=>Math.min(best,distanceMeters(p,location)),Infinity);if(nearest>45)continue;count++;const description=String(item.description||'Reported traffic incident').slice(0,110);const key=[location.lat.toFixed(4),location.lng.toFixed(4),description].join('|');if(!incidentSeen.has(key)){incidentSeen.add(key);if(incidentSeen.size>100)incidentSeen.clear();$('incidentStatus').textContent='Reported traffic incident near route';say('Reported traffic incident may be ahead. Check road signs.');}}if(!count)$('incidentStatus').textContent='No nearby point incidents reported';}catch(e){if(session===navSession)$('incidentStatus').textContent='Traffic alerts unavailable';}finally{incidentBusy=false;}}}
-function updatePosition(pos){const route=routes[active];if(!route||!route.points?.length)return;const here={lat:pos.coords.latitude,lng:pos.coords.longitude},accuracy=pos.coords.accuracy||0;
-if(!navMarker)navMarker=L.circleMarker([here.lat,here.lng],{radius:9,color:'#fff',weight:3,fillColor:'#238bff',fillOpacity:1}).addTo(map);else navMarker.setLatLng([here.lat,here.lng]);
-if(!navAccuracy)navAccuracy=L.circle([here.lat,here.lng],{radius:accuracy,color:'#338cf7',weight:1,fillOpacity:.08}).addTo(map);else navAccuracy.setLatLng([here.lat,here.lng]).setRadius(accuracy);
-if(followGPS)map.setView([here.lat,here.lng],Math.max(15,map.getZoom()),{animate:true});
-const pts=route.points;let closest=0,min=Infinity;for(let i=0;i<pts.length;i++){const d=distanceMeters(here,{lat:pts[i].latitude,lng:pts[i].longitude});if(d<min){min=d;closest=i;}}
-checkRouteIncidents(here,accuracy,route,closest,navSession);
-let remaining=0;for(let i=closest;i<pts.length-1;i++)remaining+=distanceMeters({lat:pts[i].latitude,lng:pts[i].longitude},{lat:pts[i+1].latitude,lng:pts[i+1].longitude});
-$('navDistance').textContent='Remaining: '+(remaining>=1000?(remaining/1000).toFixed(1)+' km':Math.round(remaining)+' m');
-$('navSpeed').textContent=pos.coords.speed===null?'GPS speed: unavailable':'GPS speed: '+Math.max(0,Math.round(pos.coords.speed*3.6))+' km/h';
-if(min>Math.max(85,accuracy*2)&&accuracy<60){offRouteSamples++;$('navProgress').textContent='Possibly off route — check road signs';if(!offRouteNotified){say('You may be off the planned route. Check your surroundings.');offRouteNotified=true;}if(offRouteSamples>=3&&$('autoReroute').checked&&Date.now()-lastReroute>45000&&!reroutePending)rerouteFrom(here,navSession);return;}if(accuracy>=60){$('navProgress').textContent='GPS accuracy low — route guidance may be unreliable';return;}
-offRouteNotified=false;offRouteSamples=0;
-let travelled=0;for(let i=0;i<closest;i++)travelled+=distanceMeters({lat:pts[i].latitude,lng:pts[i].longitude},{lat:pts[i+1].latitude,lng:pts[i+1].longitude});
-const steps=route.instructions||[];let stepIndex=steps.findIndex(s=>Number(s.distanceMeters)>=travelled-20);if(stepIndex<0)stepIndex=steps.length-1;
-const step=steps[stepIndex];if(step){const delta=Math.max(0,Math.round(Number(step.distanceMeters)-travelled));$('nextTurn').textContent=(delta>0?delta+' m · ':'')+(step.message||'Continue');$('navProgress').textContent='GPS guidance · Position accuracy ±'+Math.round(accuracy)+' m';if(stepIndex!==lastSpokenStep&&delta<220&&accuracy<70){lastSpokenStep=stepIndex;say(step.message||'Continue');}}else{$('nextTurn').textContent='Follow planned route';$('navProgress').textContent='GPS active · Detailed directions unavailable';}
-if(remaining<40&&min<40){$('nextTurn').textContent='Approaching destination';$('navProgress').textContent='Check destination access and road signs';}
+function routeProgress(here,points){
+ const rad=Math.PI/180,latScale=111195,lonScale=latScale*Math.cos(here.lat*rad);
+ let best={distance:Infinity,travelled:0,index:0},sum=0;
+ for(let i=0;i<points.length-1;i++){
+  const a=points[i],b=points[i+1],ax=(a.longitude-here.lng)*lonScale,ay=(a.latitude-here.lat)*latScale,bx=(b.longitude-here.lng)*lonScale,by=(b.latitude-here.lat)*latScale;
+  const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy,t=len2?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/len2)):0;
+  const dist=Math.hypot(ax+t*dx,ay+t*dy),length=distanceMeters({lat:a.latitude,lng:a.longitude},{lat:b.latitude,lng:b.longitude});
+  if(dist<best.distance)best={distance:dist,travelled:sum+t*length,index:i};
+  sum+=length;
+ }
+ return {...best,total:sum,remaining:Math.max(0,sum-best.travelled)};
 }
-$('startNav').onclick=()=>{if(!routes[active])return;if(!navigator.geolocation){status('GPS location is not supported by this browser.');return;}$('routeSheet').hidden=true;$('navOverlay').hidden=false;$('navDestination').textContent=selected.to?.name||'Destination';$('navEta').textContent=Math.round(routes[active].travelMinutes)+' min · '+routes[active].distanceKm.toFixed(1)+' km planned';$('nextTurn').textContent='Waiting for GPS…';$('navProgress').textContent='Allow location permission to begin';lastSpokenStep=-1;offRouteNotified=false;offRouteSamples=0;navSession++;lastIncidentCheck=0;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: waiting';followGPS=true;
+let lastGpsTimestamp=0,lastProgressMeters=0,routeGeometryCache=null,routeGeometryRef=null;
+function updatePosition(pos){
+ const route=routes[active];if(!route||route.points?.length<2)return;
+ if(pos.timestamp&&pos.timestamp<=lastGpsTimestamp)return;
+ const here={lat:pos.coords.latitude,lng:pos.coords.longitude},accuracy=Number(pos.coords.accuracy);
+ if(!Number.isFinite(here.lat)||!Number.isFinite(here.lng))return;
+ if(pos.timestamp)lastGpsTimestamp=pos.timestamp;
+ if(!navMarker)navMarker=L.circleMarker([here.lat,here.lng],{radius:9,color:'#fff',weight:3,fillColor:'#238bff',fillOpacity:1}).addTo(map);else navMarker.setLatLng([here.lat,here.lng]);
+ if(!navAccuracy)navAccuracy=L.circle([here.lat,here.lng],{radius:Number.isFinite(accuracy)?accuracy:100,color:'#338cf7',weight:1,fillOpacity:.08}).addTo(map);else navAccuracy.setLatLng([here.lat,here.lng]).setRadius(Number.isFinite(accuracy)?accuracy:100);
+ if(followGPS&&distanceMeters(here,map.getCenter())>20)map.setView([here.lat,here.lng],Math.max(15,map.getZoom()),{animate:false});
+ const progress=routeProgress(here,route.points),closest=progress.index,min=progress.distance,remaining=progress.remaining;
+ $('navDistance').textContent='Remaining: '+(remaining>=1000?(remaining/1000).toFixed(1)+' km':Math.round(remaining)+' m');
+ $('navSpeed').textContent=Number.isFinite(pos.coords.speed)?'GPS speed: '+Math.max(0,Math.round(pos.coords.speed*3.6))+' km/h':'GPS speed: unavailable';
+ const plannedSpeed=Math.max(15,Math.min(110,route.distanceKm/(route.travelMinutes/60||1)));
+ const speed=Number.isFinite(pos.coords.speed)&&pos.coords.speed>4?Math.max(15,Math.min(110,pos.coords.speed*3.6)):plannedSpeed;
+ const etaMinutes=Math.ceil(remaining/1000/speed*60);
+ $('navEta').textContent='Approx. '+etaMinutes+' min remaining · '+(remaining/1000).toFixed(1)+' km';
+ if(!Number.isFinite(accuracy)||accuracy>=60){$('navProgress').textContent='GPS accuracy low — route guidance may be unreliable';return;}
+ checkRouteIncidents(here,accuracy,route,closest,navSession);
+ if(min>Math.max(85,accuracy*2)){
+  offRouteSamples++;$('navProgress').textContent='Possibly off route — check road signs';
+  if(!offRouteNotified){say('You may be off the planned route. Check your surroundings.');offRouteNotified=true;}
+  if(offRouteSamples>=3&&$('autoReroute').checked&&Date.now()-lastReroute>45000&&!reroutePending)rerouteFrom(here,navSession);
+  return;
+ }
+ offRouteNotified=false;offRouteSamples=0;
+ const travelled=progress.travelled;
+ const steps=route.instructions||[];
+ let stepIndex=steps.findIndex(s=>Number(s.distanceMeters)>=travelled-20);
+ if(stepIndex<0)stepIndex=steps.length-1;
+ const step=steps[stepIndex];
+ if(step){
+  const delta=Math.max(0,Math.round(Number(step.distanceMeters)-travelled));
+  $('nextTurn').textContent=(delta>0?delta+' m · ':'')+(step.message||'Continue');
+  $('navProgress').textContent='GPS guidance · Position accuracy ±'+Math.round(accuracy)+' m';
+  if(stepIndex!==lastSpokenStep&&delta<180&&accuracy<40){lastSpokenStep=stepIndex;say(step.message||'Continue');}
+ }else{$('nextTurn').textContent='Follow planned route';$('navProgress').textContent='GPS active · Detailed directions unavailable';}
+ if(remaining<45&&min<35){$('nextTurn').textContent='Approaching destination';$('navProgress').textContent='Check destination access and road signs';}
+}
+
+$('startNav').onclick=()=>{if(!routes[active])return;if(!navigator.geolocation){status('GPS location is not supported by this browser.');return;}$('routeSheet').hidden=true;$('navOverlay').hidden=false;$('navDestination').textContent=selected.to?.name||'Destination';$('navEta').textContent=Math.round(routes[active].travelMinutes)+' min · '+routes[active].distanceKm.toFixed(1)+' km planned';$('nextTurn').textContent='Waiting for GPS…';$('navProgress').textContent='Allow location permission to begin';lastSpokenStep=-1;offRouteNotified=false;offRouteSamples=0;lastGpsTimestamp=0;navSession++;lastIncidentCheck=0;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: waiting';followGPS=true;
 try{navWatch=navigator.geolocation.watchPosition(updatePosition,e=>{const message=e.code===1?'Location permission denied':'GPS unavailable. Check location settings or signal.';$('navProgress').textContent=message;status(message);},{enableHighAccuracy:true,maximumAge:1500,timeout:15000});}catch(e){$('navProgress').textContent='Could not start GPS';status('GPS could not be started.');}};
 $('endNav').onclick=stopNavigation;
 $('recenterNav').onclick=()=>{followGPS=true;if(navMarker)map.setView(navMarker.getLatLng(),16);};
