@@ -57,3 +57,26 @@
 #speedDataFile{max-width:100%;font-size:12px;color:#d7e7f1}.lane-data{display:block;margin-top:6px;color:#ffdc78;font-size:11px}#speedRouteStatus{color:#c3e9d4}
 
 .lane-arrows{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.lane-arrow{border:1px solid #617287;border-radius:7px;padding:6px 10px;background:#253447;font-size:22px;color:#c9d2de}.lane-arrow.recommended{background:#11663e;color:white;border-color:#35d38b}.original-direction{display:block;color:#a7b6c7;margin-top:4px;font-size:11px}
+
+/* Phone/tablet only, while navigation is active. Desktop is unchanged. */
+.mobile-drive{display:none}
+@media(max-width:1024px) and (pointer:coarse){
+ body.mobile-navigating .header{display:none}
+ body.mobile-navigating .shell{height:100dvh}
+ body.mobile-navigating .explore-badge,body.mobile-navigating .map-tools,body.mobile-navigating .search-panel,body.mobile-navigating .route-sheet,body.mobile-navigating .toast{display:none!important}
+ body.mobile-navigating .nav-overlay{pointer-events:none;inset:0;position:absolute;z-index:650}
+ body.mobile-navigating .nav-top,body.mobile-navigating .nav-bottom{display:none}
+ body.mobile-navigating .mobile-drive{display:block;position:absolute;inset:0;color:white;font-family:Inter,system-ui,sans-serif}
+ body.mobile-navigating #map3d,body.mobile-navigating #map{height:100%;width:100%}
+ .mobile-turn{pointer-events:auto;position:absolute;left:10px;right:10px;top:max(10px,env(safe-area-inset-top));display:flex;gap:14px;align-items:center;padding:15px 18px;background:#182638ed;border:1px solid #526476;border-radius:17px;box-shadow:0 8px 28px #0008;min-height:94px}
+ .mobile-turn-icon{font-size:52px;line-height:1;color:#8cf2bc;min-width:54px;text-align:center}
+ .mobile-turn-copy{flex:1;min-width:0}.mobile-turn-copy strong{display:block;font-size:clamp(18px,4vw,28px);line-height:1.2}.mobile-turn-copy small{display:block;margin-top:5px;color:#e4e9f0;font-size:14px}
+ .mobile-lanes{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap}.mobile-lane{background:#39495a;border:1px solid #788797;border-radius:6px;padding:4px 9px;font-size:23px}.mobile-lane.recommended{background:#087c48;border-color:#45df99}
+ .mobile-speed{position:absolute;left:12px;top:clamp(145px,23dvh,240px);display:flex;flex-direction:column;align-items:center;background:#132339e8;border:2px solid #c9e6f2;border-radius:50%;width:80px;height:80px;justify-content:center;box-shadow:0 5px 18px #0007}
+ .mobile-speed strong{font-size:31px;line-height:1}.mobile-speed span{font-size:11px}.mobile-speed small{position:absolute;top:83px;left:-7px;min-width:96px;background:#152235eb;border-radius:8px;text-align:center;font-size:10px;padding:5px}
+ .mobile-progress{position:absolute;right:10px;top:clamp(145px,23dvh,240px);bottom:130px;width:6px;border-radius:6px;background:#ffffff5c;overflow:hidden}.mobile-progress span{display:block;background:#29ce7d;width:100%;height:0;transition:height .7s}
+ .mobile-drive-bottom{pointer-events:auto;position:absolute;bottom:max(12px,env(safe-area-inset-bottom));left:10px;right:10px;display:flex;align-items:center;gap:10px;background:#14202ef2;border:1px solid #4d5b6d;border-radius:18px;padding:12px;box-shadow:0 8px 28px #0008}
+ .mobile-drive-bottom button{background:#2a3d51;border:1px solid #5d7285;border-radius:11px;color:white;min-width:44px;min-height:48px;font-size:20px}
+ .mobile-eta{flex:1;min-width:0;display:flex;flex-direction:column}.mobile-eta strong{font-size:23px}.mobile-eta span{font-size:13px;color:#d6e2e9}.mobile-eta small{font-size:11px;color:#a8bbc9}
+ .mobile-gps-notice{position:absolute;bottom:108px;left:50%;transform:translateX(-50%);background:#172333df;border-radius:10px;padding:6px 11px;font-size:11px;white-space:nowrap;max-width:80%;overflow:hidden;text-overflow:ellipsis}
+}
