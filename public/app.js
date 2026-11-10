@@ -18,7 +18,7 @@ function renderRoute(index){active=index;const route=routes[index];if(!route)ret
 $('route').onclick=async()=>{if(!selected.from||!selected.to){status('Search for a starting point and destination.');return;}status('Finding driving routes…');try{const a=selected.from,b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(a.lng+','+a.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat)+'&language='+encodeURIComponent($('language').value));routes=d.routes?.length?d.routes:[d];$('destinationTitle').textContent=selected.to.name;$('routeCount').textContent=routes.length+' available';const options=$('routeOptions');options.replaceChildren();routes.forEach((r,i)=>{const btn=document.createElement('button');btn.className='route-option';const title=document.createElement('small');title.textContent=i===0?'FASTEST':'ALTERNATIVE '+i;const time=document.createElement('strong');time.textContent=Math.round(r.travelMinutes)+' min';const dist=document.createElement('span');dist.textContent=r.distanceKm.toFixed(1)+' km · '+(r.tollStatus==='tollRoad'?'Toll road detected':r.tollStatus==='noTollRoadReported'?'No toll road reported':'Toll status unknown');btn.append(title,time,dist);btn.onclick=()=>renderRoute(i);options.appendChild(btn);});$('searchPanel').hidden=true;$('routeSheet').hidden=false;renderRoute(0);status('Routes ready.');}catch(e){status('Route unavailable: '+e.message);}};
 function distanceMeters(a,b){const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 12742000*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 function say(message){if(!$('voice').checked||!('speechSynthesis'in window)||!message)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(message);u.lang=$('voiceLanguage').value;u.volume=Number($('voiceVolume').value)/100;u.rate=.95;const v=speechSynthesis.getVoices();const lang=u.lang.toLowerCase();u.voice=v.find(x=>x.lang.toLowerCase()===lang)||v.find(x=>x.lang.toLowerCase().split('-')[0]===lang.split('-')[0])||null;speechSynthesis.speak(u);}
-function stopNavigation(){navSession++;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: stopped';offRouteSamples=0;reroutePending=false;$('rerouteState').textContent='';if(navWatch!==null){navigator.geolocation.clearWatch(navWatch);navWatch=null;}if(navMarker){map.removeLayer(navMarker);navMarker=null;}if(navAccuracy){map.removeLayer(navAccuracy);navAccuracy=null;}$('navOverlay').hidden=true;$('routeSheet').hidden=false;if('speechSynthesis'in window)speechSynthesis.cancel();status('Navigation stopped.');}
+function stopNavigation(){endMobileDriving();navSession++;incidentSeen.clear();$('incidentStatus').textContent='Traffic alerts: stopped';offRouteSamples=0;reroutePending=false;$('rerouteState').textContent='';if(navWatch!==null){navigator.geolocation.clearWatch(navWatch);navWatch=null;}if(navMarker){map.removeLayer(navMarker);navMarker=null;}if(navAccuracy){map.removeLayer(navAccuracy);navAccuracy=null;}$('navOverlay').hidden=true;$('routeSheet').hidden=false;if('speechSynthesis'in window)speechSynthesis.cancel();status('Navigation stopped.');}
 async function rerouteFrom(here,session){if(reroutePending||!selected.to||!routes[active])return;reroutePending=true;lastReroute=Date.now();$('rerouteState').textContent='Finding updated route…';try{const b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(here.lng+','+here.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat)+'&language='+encodeURIComponent($('language').value));if(session!==navSession)return;const next=d.routes?.[0];if(!next?.points?.length)throw Error('No new route');routes=[next];active=0;lastSpokenStep=-1;offRouteSamples=0;offRouteNotified=false;lastGpsTimestamp=0;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(next.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7}).addTo(map);if(threeD)sync3dRoute();$('navEta').textContent=Math.round(next.travelMinutes)+' min · '+next.distanceKm.toFixed(1)+' km planned';$('rerouteState').textContent='Route updated';say('Route updated. Follow the new route when safe.');}catch(e){if(session===navSession)$('rerouteState').textContent='Could not reroute; follow road signs';}finally{reroutePending=false;}}
 async function checkRouteIncidents(here,accuracy,route,closest,session){if(!document.hidden&&!incidentBusy&&$('incidentAlerts').checked&&Date.now()-lastIncidentCheck>=60000&&accuracy<65){lastIncidentCheck=Date.now();incidentBusy=true;try{const span=.015,west=Math.max(-180,here.lng-span),east=Math.min(180,here.lng+span),south=Math.max(-90,here.lat-span),north=Math.min(90,here.lat+span);const data=await request('/api/traffic?bbox='+encodeURIComponent([west,south,east,north].join(',')));if(session!==navSession)return;const points=route.points;let ahead=0;const path=[];for(let i=closest;i<points.length&&ahead<1500;i++){const p={lat:points[i].latitude,lng:points[i].longitude};path.push(p);if(i+1<points.length)ahead+=distanceMeters(p,{lat:points[i+1].latitude,lng:points[i+1].longitude});}let count=0;for(const item of data.incidents||[]){const g=item.geometry;if(g?.type!=='Point'||!Array.isArray(g.coordinates))continue;const location={lat:Number(g.coordinates[1]),lng:Number(g.coordinates[0])};if(!Number.isFinite(location.lat)||!Number.isFinite(location.lng))continue;const nearest=path.reduce((best,p)=>Math.min(best,distanceMeters(p,location)),Infinity);if(nearest>45)continue;count++;const description=String(item.description||'Reported traffic incident').slice(0,110);const key=[location.lat.toFixed(4),location.lng.toFixed(4),description].join('|');if(!incidentSeen.has(key)){incidentSeen.add(key);if(incidentSeen.size>100)incidentSeen.clear();$('incidentStatus').textContent='Reported traffic incident near route';say('Reported traffic incident may be ahead. Check road signs.');}}if(!count)$('incidentStatus').textContent='No nearby point incidents reported';}catch(e){if(session===navSession)$('incidentStatus').textContent='Traffic alerts unavailable';}finally{incidentBusy=false;}}}
 function routeProgress(here,points){
@@ -53,9 +53,9 @@ function updatePosition(pos){
  const speed=Number.isFinite(pos.coords.speed)&&pos.coords.speed>4?Math.max(15,Math.min(110,pos.coords.speed*3.6)):plannedSpeed;
  const etaMinutes=Math.ceil(remaining/1000/speed*60);
  $('navEta').textContent='Approx. '+etaMinutes+' min remaining · '+(remaining/1000).toFixed(1)+' km';
- if(!Number.isFinite(accuracy)||accuracy>=60){$('navProgress').textContent='GPS accuracy low — route guidance may be unreliable';return;}
+ if(!Number.isFinite(accuracy)||accuracy>=60){$('navProgress').textContent='GPS accuracy low — route guidance may be unreliable';$('mobileGpsNotice').textContent='GPS accuracy low — follow road signs';return;}
  checkRouteIncidents(here,accuracy,route,closest,navSession);checkAwas(here,accuracy,route,closest);
- if(min>Math.max(85,accuracy*2)){
+ if(min>Math.max(85,accuracy*2)){$('mobileGpsNotice').textContent='Possibly off route — check road signs';
   offRouteSamples++;$('navProgress').textContent='Possibly off route — check road signs';
   if(!offRouteNotified){say('You may be off the planned route. Check your surroundings.');offRouteNotified=true;}
   if(offRouteSamples>=3&&$('autoReroute').checked&&Date.now()-lastReroute>45000&&!reroutePending)rerouteFrom(here,navSession);
@@ -67,6 +67,7 @@ function updatePosition(pos){
  let stepIndex=steps.findIndex(s=>Number(s.distanceMeters)>=travelled-20);
  if(stepIndex<0)stepIndex=steps.length-1;
  const step=steps[stepIndex];
+ mobilePositionUI(pos,remaining,etaMinutes,step,step?Number(step.distanceMeters)-travelled:0,accuracy);
  if(step){
   const delta=Math.max(0,Math.round(Number(step.distanceMeters)-travelled));
   $('nextTurn').textContent=(delta>0?delta+' m · ':'')+localizedStep(step).primary;
@@ -76,7 +77,7 @@ function updatePosition(pos){
  if(remaining<45&&min<35){$('nextTurn').textContent='Approaching destination';$('navProgress').textContent='Check destination access and road signs';}
 }
 
-$('startNav').onclick=()=>{if(!routes[active])return;if(!navigator.geolocation){status('GPS location is not supported by this browser.');return;}$('routeSheet').hidden=true;$('navOverlay').hidden=false;$('navDestination').textContent=selected.to?.name||'Destination';$('navEta').textContent=Math.round(routes[active].travelMinutes)+' min · '+routes[active].distanceKm.toFixed(1)+' km planned';$('nextTurn').textContent='Waiting for GPS…';$('navProgress').textContent='Allow location permission to begin';lastSpokenStep=-1;offRouteNotified=false;offRouteSamples=0;lastGpsTimestamp=0;navSession++;lastIncidentCheck=0;incidentSeen.clear();awasSeen.clear();$('incidentStatus').textContent='Traffic alerts: waiting';followGPS=true;
+$('startNav').onclick=()=>{if(!routes[active])return;if(!navigator.geolocation){status('GPS location is not supported by this browser.');return;}$('routeSheet').hidden=true;$('navOverlay').hidden=false;$('navDestination').textContent=selected.to?.name||'Destination';$('navEta').textContent=Math.round(routes[active].travelMinutes)+' min · '+routes[active].distanceKm.toFixed(1)+' km planned';$('nextTurn').textContent='Waiting for GPS…';$('navProgress').textContent='Allow location permission to begin';lastSpokenStep=-1;offRouteNotified=false;offRouteSamples=0;lastGpsTimestamp=0;navSession++;lastIncidentCheck=0;incidentSeen.clear();awasSeen.clear();$('incidentStatus').textContent='Traffic alerts: waiting';followGPS=true;activateMobileDriving();
 try{navWatch=navigator.geolocation.watchPosition(updatePosition,e=>{const message=e.code===1?'Location permission denied':'GPS unavailable. Check location settings or signal.';$('navProgress').textContent=message;status(message);},{enableHighAccuracy:true,maximumAge:1500,timeout:15000});}catch(e){$('navProgress').textContent='Could not start GPS';status('GPS could not be started.');}};
 $('endNav').onclick=stopNavigation;
 $('recenterNav').onclick=()=>{followGPS=true;driveCameraFollowing=true;if(navMarker){const p=navMarker.getLatLng();if(threeD&&driveCamera&&threeDReady){const route=routes[active];setDriveCamera(p,route?.points?.length>1?routeHeading(route.points,0):0);}else map.setView(p,16);}};
@@ -305,3 +306,37 @@ function refreshDirections(){
 }
 
 $('language').addEventListener('change',()=>{if(routes[active])refreshDirections();});
+
+/* Mobile-only driving display; desktop remains the existing route planner. */
+const mobileDriving=()=>window.matchMedia('(max-width: 1024px) and (pointer: coarse)').matches;
+function mobileTurnSymbol(step){const code=actionCode(step?.maneuver);return ({LEFT:'↰',RIGHT:'↱',KEEP_LEFT:'↖',KEEP_RIGHT:'↗',STRAIGHT:'↑',UTURN:'↩',ROUNDABOUT:'↻',ARRIVE:'●'})[code]||'↑';}
+function mobileLaneDisplay(step){
+ const holder=$('mobileLaneArrows');holder.replaceChildren();
+ for(const lane of laneDetails(step?.laneGuidance).slice(0,6)){const el=document.createElement('span');el.className='mobile-lane'+(lane.recommended?' recommended':'');el.textContent=lane.arrows;holder.appendChild(el);}
+}
+function mobilePositionUI(pos,remaining,etaMinutes,step,delta,accuracy){
+ if(!mobileDriving()||$('navOverlay').hidden)return;
+ $('mobileSpeedValue').textContent=Number.isFinite(pos.coords.speed)?String(Math.max(0,Math.round(pos.coords.speed*3.6))):'—';
+ const limit=Number.isFinite(accuracy)&&accuracy<30?matchedSpeed({lat:pos.coords.latitude,lng:pos.coords.longitude}):null;
+ $('mobileSpeedLimit').textContent=limit?'Road data '+limit.speed+' km/h':'Limit unavailable';
+ $('mobileEta').textContent=etaMinutes+' min';
+ $('mobileRemaining').textContent=(remaining/1000).toFixed(1)+' km remaining';
+ $('mobileTurnIcon').textContent=mobileTurnSymbol(step);
+ $('mobileTurnText').textContent=step?localizedStep(step).primary:'Continue along route';
+ $('mobileTurnDistance').textContent=step?Math.max(0,Math.round(delta))+' m to next maneuver':'Turn instructions unavailable';
+ mobileLaneDisplay(step);
+ const total=Math.max(1,routes[active]?.distanceKm*1000||1);
+ $('mobileRouteProgress').style.height=Math.max(0,Math.min(100,(1-remaining/total)*100))+'%';
+ $('mobileGpsNotice').textContent=!Number.isFinite(accuracy)||accuracy>=60?'GPS accuracy low — follow road signs':'GPS accuracy ±'+Math.round(accuracy)+' m';
+}
+function activateMobileDriving(){
+ if(!mobileDriving())return;
+ document.body.classList.add('mobile-navigating');
+ if(!threeD){try{$('mode3d').click();}catch(e){status('3D unavailable; using 2D map.');}}
+ if(threeD){driveCamera=true;driveCameraFollowing=true;$('driveView').setAttribute('aria-pressed','true');if(threeDReady)drivePreview();}
+ $('mobileViewToggle').textContent=threeD?'2D':'3D';
+}
+function endMobileDriving(){document.body.classList.remove('mobile-navigating');}
+$('mobileEndNav').onclick=()=>stopNavigation();
+$('mobileRecenter').onclick=()=>{$('recenterNav').click();};
+$('mobileViewToggle').onclick=()=>{$('mode3d').click();if(threeD){driveCamera=true;driveCameraFollowing=true;if(threeDReady)drivePreview();}$('mobileViewToggle').textContent=threeD?'2D':'3D';};
