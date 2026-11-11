@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id),status=msg=>$('status').textContent=msg;
 const selected={from:null,to:null},markers={from:null,to:null};let routes=[],active=0,routeLayer=null,tapNext='from',navWatch=null,navMarker=null,navAccuracy=null,lastSpokenStep=-1,offRouteNotified=false,followGPS=true,lastReroute=0,offRouteSamples=0,reroutePending=false,navSession=0,lastIncidentCheck=0,incidentBusy=false,incidentSeen=new Set();
 const trafficLayer=L.layerGroup().addTo(map),railLayer=L.layerGroup().addTo(map);$('mapStyle').onclick=()=>{map.removeLayer(darkMode?darkTiles:streetTiles);(darkMode?streetTiles:darkTiles).addTo(map);darkMode=!darkMode;status(darkMode?'Dark map enabled.':'Street map enabled.');};
 function mark(kind,point,name){selected[kind]={lat:point.lat,lng:point.lng,name};if(markers[kind])map.removeLayer(markers[kind]);markers[kind]=L.circleMarker([point.lat,point.lng],{radius:9,weight:3,color:'#fff',fillColor:kind==='from'?'#10b96a':'#a8ce45',fillOpacity:1}).addTo(map).bindPopup(document.createTextNode((kind==='from'?'Start: ':'Destination: ')+name));$(kind).value=name;tapNext=kind==='from'?'to':'from';if(threeD)sync3dRoute();}
-function clearRoute(){if(navWatch!==null)stopNavigation();if(routeLayer)map.removeLayer(routeLayer);routeLayer=null;routes=[];if(threeD)sync3dRoute();$('routeSheet').hidden=true;}
+function clearRoute(){stopSimulation();if(navWatch!==null)stopNavigation();if(routeLayer)map.removeLayer(routeLayer);routeLayer=null;routes=[];if(threeD)sync3dRoute();$('routeSheet').hidden=true;}
 function reset(){if(navWatch!==null)stopNavigation();for(const k of ['from','to']){selected[k]=null;$(k).value='';if(markers[k])map.removeLayer(markers[k]);markers[k]=null;}clearRoute();tapNext='from';status('Search for a destination to get started.');}
 $('reset').onclick=reset;$('openSearch').onclick=()=>$('searchPanel').hidden=false;$('closeSearch').onclick=()=>$('searchPanel').hidden=true;$('sheetClose').onclick=()=>$('routeSheet').hidden=true;
 map.on('click',e=>{const k=tapNext;mark(k,e.latlng,'Pinned location');clearRoute();status(k==='from'?'Starting point pinned. Search or tap a destination.':'Destination pinned. Press Find routes.');});
@@ -13,7 +13,7 @@ for(const kind of ['from','to']){const input=$(kind),list=$(kind+'-suggestions')
 $('swap').onclick=()=>{const a=selected.from,b=selected.to;if(!a||!b){status('Choose both locations first.');return;}mark('from',b,b.name);mark('to',a,a.name);clearRoute();};
 function locate(){if(!navigator.geolocation){status('Location not supported.');return;}status('Requesting location permission…');navigator.geolocation.getCurrentPosition(p=>{mark('from',{lat:p.coords.latitude,lng:p.coords.longitude},'My current location');map.setView([p.coords.latitude,p.coords.longitude],13);status('Current location selected.');},()=>status('Location unavailable. Check permissions.'),{enableHighAccuracy:true,timeout:10000});}
 $('locate').onclick=locate;$('useLocation').onclick=locate;
-function renderRoute(index){active=index;const route=routes[index];if(!route)return;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(route.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7,opacity:.95}).addTo(map);if(threeD){sync3dRoute();if(driveCamera)drivePreview();else fit3dRoute();}map.fitBounds(routeLayer.getBounds(),{padding:[45,45]});for(const [i,el] of [...$('routeOptions').children].entries())el.classList.toggle('active',i===index);$('routeInfo').textContent=route.distanceKm.toFixed(1)+' km · '+Math.round(route.travelMinutes)+' min estimated.'; $('tollInfo').textContent=route.tollStatus==='tollRoad'?'TomTom reports '+route.tollRoadSections+' toll-road section(s). Fare unavailable for vehicle class '+$('vehicleClass').value+': current verified prices are not connected.':route.tollStatus==='noTollRoadReported'?'TomTom did not report toll-road sections. This is not a guarantee of a toll-free journey.':'Toll information unavailable.';$('laneStatus').textContent=route.instructions?.some(s=>s.laneGuidance?.length)?'Provider lane guidance available for some maneuvers (see directions).':'Lane guidance unavailable for this route; follow road markings.';speedAtRoute();$('routeLanguageStatus').textContent='Route instructions requested in '+$('language').selectedOptions[0].textContent+'. Actual language depends on TomTom support; check the text before relying on voice.';refreshDirections();}
+function renderRoute(index){stopSimulation();active=index;const route=routes[index];if(!route)return;if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(route.points.map(p=>[p.latitude,p.longitude]),{color:'#22bd74',weight:7,opacity:.95}).addTo(map);if(threeD){sync3dRoute();if(driveCamera)drivePreview();else fit3dRoute();}map.fitBounds(routeLayer.getBounds(),{padding:[45,45]});for(const [i,el] of [...$('routeOptions').children].entries())el.classList.toggle('active',i===index);$('routeInfo').textContent=route.distanceKm.toFixed(1)+' km · '+Math.round(route.travelMinutes)+' min estimated.'; $('tollInfo').textContent=route.tollStatus==='tollRoad'?'TomTom reports '+route.tollRoadSections+' toll-road section(s). Fare unavailable for vehicle class '+$('vehicleClass').value+': current verified prices are not connected.':route.tollStatus==='noTollRoadReported'?'TomTom did not report toll-road sections. This is not a guarantee of a toll-free journey.':'Toll information unavailable.';$('laneStatus').textContent=route.instructions?.some(s=>s.laneGuidance?.length)?'Provider lane guidance available for some maneuvers (see directions).':'Lane guidance unavailable for this route; follow road markings.';speedAtRoute();$('routeLanguageStatus').textContent='Route instructions requested in '+$('language').selectedOptions[0].textContent+'. Actual language depends on TomTom support; check the text before relying on voice.';refreshDirections();}
 
 $('route').onclick=async()=>{if(!selected.from||!selected.to){status('Search for a starting point and destination.');return;}status('Finding driving routes…');try{const a=selected.from,b=selected.to;const d=await request('/api/route?from='+encodeURIComponent(a.lng+','+a.lat)+'&to='+encodeURIComponent(b.lng+','+b.lat)+'&language='+encodeURIComponent($('language').value));routes=d.routes?.length?d.routes:[d];$('destinationTitle').textContent=selected.to.name;$('routeCount').textContent=routes.length+' available';const options=$('routeOptions');options.replaceChildren();routes.forEach((r,i)=>{const btn=document.createElement('button');btn.className='route-option';const title=document.createElement('small');title.textContent=i===0?'FASTEST':'ALTERNATIVE '+i;const time=document.createElement('strong');time.textContent=Math.round(r.travelMinutes)+' min';const dist=document.createElement('span');dist.textContent=r.distanceKm.toFixed(1)+' km · '+(r.tollStatus==='tollRoad'?'Toll road detected':r.tollStatus==='noTollRoadReported'?'No toll road reported':'Toll status unknown');btn.append(title,time,dist);btn.onclick=()=>renderRoute(i);options.appendChild(btn);});$('searchPanel').hidden=true;$('routeSheet').hidden=false;renderRoute(0);status('Routes ready.');}catch(e){status('Route unavailable: '+e.message);}};
 function distanceMeters(a,b){const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLon=(b.lng-a.lng)*r;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;return 12742000*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
@@ -98,7 +98,7 @@ $('language').onchange=()=>{const t=translations[$('language').value];$('openSea
 let map3d=null,threeD=false,threeDReady=false,driveCamera=false,driveCameraFollowing=true,lastCameraMove=0;
 function routeBearing(a,b){const rad=Math.PI/180,lat1=a.lat*rad,lat2=b.lat*rad,dLon=(b.lng-a.lng)*rad;const y=Math.sin(dLon)*Math.cos(lat2),x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);return (Math.atan2(y,x)/rad+360)%360;}
 function routeHeading(points,index){const a=points[Math.min(index,points.length-2)],b=points[Math.min(index+1,points.length-1)];return routeBearing({lat:a.latitude,lng:a.longitude},{lat:b.latitude,lng:b.longitude});}
-function setDriveCamera(point,heading,animated=true){if(!map3d||!threeDReady||!threeD)return;const camera={center:[point.lng,point.lat],zoom:17,pitch:68,bearing:Number.isFinite(heading)?heading:0};if(animated)map3d.easeTo({...camera,duration:650,essential:true});else map3d.jumpTo(camera);}
+function setDriveCamera(point,heading,animated=true){if(!map3d||!threeDReady||!threeD)return;const camera={center:[point.lng,point.lat],zoom:17.4,pitch:72,bearing:Number.isFinite(heading)?heading:0,padding:{top:0,bottom:Math.round(map3d.getContainer().clientHeight*.28),left:0,right:0}};if(animated)map3d.easeTo({...camera,duration:650,essential:true});else map3d.jumpTo(camera);}
 function drivePreview(){const route=routes[active];if(!route?.points?.length||!threeDReady){status('Choose a route and wait for the 3D map to load.');return;}const first=route.points[0];driveCamera=true;driveCameraFollowing=true;$('driveView').setAttribute('aria-pressed','true');setDriveCamera({lat:first.latitude,lng:first.longitude},routeHeading(route.points,0));status('3D driving preview. Drag to inspect; use Recenter to restore.');}
 
 const buildingStyle='https://tiles.openfreemap.org/styles/liberty';
@@ -127,7 +127,7 @@ function init3d(){
    try{map3d.addLayer({id:'lapan-buildings-3d',type:'fill-extrusion',source:vectorId,'source-layer':'building',minzoom:14,paint:{'fill-extrusion-color':'#7f91a1','fill-extrusion-height':['coalesce',['get','render_height'],['get','height'],12],'fill-extrusion-base':['coalesce',['get','render_min_height'],['get','min_height'],0],'fill-extrusion-opacity':0.76}},label?.id);}catch(e){status('3D view loaded; building heights unavailable in this area.');}
   }
   map3d.addSource('lapan-route',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-  map3d.addLayer({id:'lapan-route-line',type:'line',source:'lapan-route',filter:['==',['geometry-type'],'LineString'],paint:{'line-color':'#ffce2c','line-width':7,'line-opacity':.95}});
+  map3d.addLayer({id:'lapan-route-line',type:'line',source:'lapan-route',filter:['==',['geometry-type'],'LineString'],paint:{'line-color':'#24d77a','line-width':9,'line-opacity':.95}});
   map3d.addLayer({id:'lapan-route-points',type:'circle',source:'lapan-route',filter:['==',['geometry-type'],'Point'],paint:{'circle-radius':8,'circle-color':['case',['==',['get','kind'],'from'],'#20d47b','#ffd447'],'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
   sync3dRoute();if(routes[active]?.points?.length>1)fit3dRoute();
  });
@@ -340,3 +340,39 @@ function endMobileDriving(){document.body.classList.remove('mobile-navigating');
 $('mobileEndNav').onclick=()=>stopNavigation();
 $('mobileRecenter').onclick=()=>{$('recenterNav').click();};
 $('mobileViewToggle').onclick=()=>{$('mode3d').click();if(threeD){driveCamera=true;driveCameraFollowing=true;if(threeDReady)drivePreview();}$('mobileViewToggle').textContent=threeD?'2D':'3D';};
+
+/* Desktop preview follows route geometry only; never impersonates GPS. */
+let simFrame=0,simPlaying=false,simDistance=0,simLast=0,simMarker=null,simRouteRef=null,simLengths=[];
+function stopSimulation(){simPlaying=false;if(simFrame)cancelAnimationFrame(simFrame);simFrame=0;simLast=0;simDistance=0;if(simMarker){map.removeLayer(simMarker);simMarker=null;}const label=$('simStatus');if(label)label.textContent='Ready to preview';}
+function simGeometry(route){
+ const pts=route.points||[];const lengths=[0];for(let i=1;i<pts.length;i++)lengths.push(lengths[i-1]+distanceMeters({lat:pts[i-1].latitude,lng:pts[i-1].longitude},{lat:pts[i].latitude,lng:pts[i].longitude}));return lengths;
+}
+function simPoint(route,meters){
+ const pts=route.points,ends=simLengths;let i=1;while(i<ends.length-1&&ends[i]<meters)i++;
+ const span=Math.max(.001,ends[i]-ends[i-1]),t=Math.max(0,Math.min(1,(meters-ends[i-1])/span)),a=pts[i-1],b=pts[i];
+ return {lat:a.latitude+(b.latitude-a.latitude)*t,lng:a.longitude+(b.longitude-a.longitude)*t,heading:routeHeading(pts,i-1)};
+}
+function simulationTick(now){
+ if(!simPlaying)return;
+ const route=routes[active];if(!route||route.points?.length<2){stopSimulation();return;}
+ if(simLast){const seconds=Math.min(.1,(now-simLast)/1000),speed=Math.max(4,simLengths.at(-1)/(Math.max(1,route.travelMinutes)*60));simDistance+=seconds*speed*Number($('simSpeed').value);}
+ simLast=now;
+ const total=simLengths.at(-1);simDistance=Math.min(total,simDistance);
+ const p=simPoint(route,simDistance);
+ if(!simMarker)simMarker=L.circleMarker([p.lat,p.lng],{radius:10,color:'#fff',weight:3,fillColor:'#16d57d',fillOpacity:1}).addTo(map);else simMarker.setLatLng([p.lat,p.lng]);
+ if(threeD&&threeDReady){setDriveCamera(p,p.heading,false);}else if(!threeD)map.panTo([p.lat,p.lng],{animate:false});
+ const travelledKm=(simDistance/1000).toFixed(1),totalKm=(total/1000).toFixed(1);
+ const step=(route.instructions||[]).find(s=>Number(s.distanceMeters)>=simDistance);
+ $('simStatus').textContent='Simulation '+travelledKm+' / '+totalKm+' km · '+(step?localizedStep(step).primary:'Follow route');
+ if(simDistance>=total){simPlaying=false;$('simStatus').textContent='Simulation complete · '+totalKm+' km';return;}
+ simFrame=requestAnimationFrame(simulationTick);
+}
+$('simPlay').onclick=()=>{
+ if(!routes[active]?.points?.length){$('simStatus').textContent='Choose a route first.';return;}
+ if(simPlaying)return;
+ const route=routes[active];if(simRouteRef!==route){simDistance=0;simRouteRef=route;simLengths=simGeometry(route);}
+ if(simDistance>=simLengths.at(-1))simDistance=0;
+ simPlaying=true;simLast=0;simFrame=requestAnimationFrame(simulationTick);
+};
+$('simPause').onclick=()=>{simPlaying=false;if(simFrame)cancelAnimationFrame(simFrame);simFrame=0;simLast=0;$('simStatus').textContent='Simulation paused · '+(simDistance/1000).toFixed(1)+' km';};
+$('simReset').onclick=()=>{stopSimulation();simRouteRef=null;};
