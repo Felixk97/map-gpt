@@ -80,3 +80,7 @@
  .mobile-eta{flex:1;min-width:0;display:flex;flex-direction:column}.mobile-eta strong{font-size:23px}.mobile-eta span{font-size:13px;color:#d6e2e9}.mobile-eta small{font-size:11px;color:#a8bbc9}
  .mobile-gps-notice{position:absolute;bottom:108px;left:50%;transform:translateX(-50%);background:#172333df;border-radius:10px;padding:6px 11px;font-size:11px;white-space:nowrap;max-width:80%;overflow:hidden;text-overflow:ellipsis}
 }
+
+.simulation-panel{background:#263442;border:1px solid #46596c;border-radius:12px;padding:12px;margin:12px 0}.simulation-panel strong{color:#b4f3ce}.simulation-controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.simulation-controls button,.simulation-controls select{background:#344a5f;color:#fff;border:1px solid #678098;border-radius:8px;padding:8px}.simulation-controls label{font-size:12px}#simStatus{color:#a8e8c6}
+@media(max-width:1024px) and (pointer:coarse){.simulation-panel{display:none}.mobile-turn{max-width:780px;margin:auto}.mobile-drive-bottom{max-width:780px;margin:auto}.mobile-gps-notice{bottom:calc(112px + env(safe-area-inset-bottom))}}
+@media(max-width:380px){.mobile-turn{padding:10px;gap:7px}.mobile-turn-icon{font-size:40px;min-width:42px}.mobile-turn-copy strong{font-size:18px}.mobile-speed{width:65px;height:65px}.mobile-speed strong{font-size:25px}.mobile-speed small{top:68px}.mobile-drive-bottom{gap:5px;padding:8px}.mobile-drive-bottom button{min-width:40px}}
