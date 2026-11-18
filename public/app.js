@@ -380,9 +380,16 @@ $('simPause').onclick=()=>{simPlaying=false;if(simFrame)cancelAnimationFrame(sim
 $('simReset').onclick=()=>{stopSimulation();simRouteRef=null;};
 $('simScrub').oninput=()=>{const route=routes[active];if(!route?.points?.length)return;if(simRouteRef!==route){simRouteRef=route;simLengths=simGeometry(route);}simDistance=simLengths.at(-1)*Number($('simScrub').value)/1000;simLast=0;$('simPercent').textContent=Math.round(Number($('simScrub').value)/10)+'%';if(!simPlaying){const p=simPoint(route,simDistance);updateVehiclePosition(p,p.heading,true);if(threeD&&threeDReady)setDriveCamera(p,p.heading,false);else map.panTo([p.lat,p.lng],{animate:false});$('simStatus').textContent='Preview position: '+(simDistance/1000).toFixed(1)+' km';}};
 
-/* User-selectable navigation marker. Emoji glyphs are original UI symbols, not licensed character artwork. */
+/* Original vector navigation markers. No third-party character artwork. */
 const markerOptions=['arrow','car','character','broom'];
 const markerGlyphs={arrow:'➤',car:'🚗',character:'🧙',broom:'🧹'};
+const markerArt={
+ arrow:'<path d="M24 4 L42 43 L24 35 L6 43 Z" fill="#20e68b" stroke="#e8fff4" stroke-width="3" stroke-linejoin="round"/><path d="M24 11 V33" stroke="#075c42" stroke-width="3"/>',
+ car:'<path d="M15 8 Q24 3 33 8 L38 19 L38 37 Q24 43 10 37 L10 19 Z" fill="#efc345" stroke="#fff4b6" stroke-width="2.5"/><path d="M16 15 L32 15 L35 24 L13 24 Z" fill="#1d4056"/><path d="M14 32 H20 M28 32 H34" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M9 23 V34 M39 23 V34" stroke="#1c2633" stroke-width="5" stroke-linecap="round"/>',
+ character:'<path d="M10 19 L24 4 L38 19 Z" fill="#7054b5" stroke="#e0d0ff" stroke-width="2"/><path d="M9 20 Q24 25 39 20" stroke="#d5b6ff" stroke-width="4" fill="none"/><circle cx="24" cy="26" r="8" fill="#eebd8b"/><path d="M13 44 Q11 33 24 33 Q37 33 35 44 Z" fill="#5c46a5" stroke="#c6b5ff" stroke-width="2"/><path d="M21 26 h1 M27 26 h1" stroke="#342e36" stroke-width="2" stroke-linecap="round"/>',
+ broom:'<path d="M4 39 L42 12" stroke="#bb814c" stroke-width="4" stroke-linecap="round"/><path d="M36 11 Q45 7 46 13 L43 21 L36 18 Z" fill="#dfb15b" stroke="#ffe1a1" stroke-width="1.5"/><path d="M16 31 L21 19 L29 22 L31 33 Z" fill="#704bb1" stroke="#d4bbff" stroke-width="1.5"/><circle cx="24" cy="14" r="6" fill="#edbe8e"/><path d="M17 12 L24 4 L31 12 Z" fill="#58418b"/><path d="M23 31 L14 36 M29 31 L35 35" stroke="#33344b" stroke-width="3" stroke-linecap="round"/>'
+};
+function markerSvg(choice){return '<svg viewBox="0 0 48 48" width="42" height="42" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+markerArt[choice]+'</svg>';}
 let markerChoice='arrow',threeDVehicleMarker=null,vehicleLastPosition=null;
 try{const saved=localStorage.getItem('hogwarts-express-marker');if(markerOptions.includes(saved))markerChoice=saved;}catch(e){}
 function markerElement(){
@@ -390,7 +397,7 @@ function markerElement(){
 }
 function updateMarkerElement(el,heading){
  if(!el)return;
- el.textContent=markerGlyphs[markerChoice];
+ el.innerHTML='<span class="vehicle-art">'+markerSvg(markerChoice)+'</span>';
  el.dataset.vehicle=markerChoice;
  const degrees=Number.isFinite(heading)?heading:0;
  el.style.setProperty('--marker-bearing',degrees+'deg');
@@ -404,7 +411,7 @@ function refreshVehicleMarkers(){
  if(simMarker?.setIcon)simMarker.setIcon(markerIcon(vehicleLastPosition?.heading));
  if(threeDVehicleMarker)updateMarkerElement(threeDVehicleMarker.getElement(),vehicleLastPosition?.heading);
  $('vehicleIcon').value=markerChoice;
- $('mobileVehicle').textContent=markerGlyphs[markerChoice];
+ $('mobileVehicle').innerHTML=markerSvg(markerChoice);
 }
 function setVehicleChoice(choice){
  if(!markerOptions.includes(choice))return;
