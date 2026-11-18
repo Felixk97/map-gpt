@@ -89,3 +89,11 @@
 
 /* Navigation overlays should not block map gestures; only their controls are interactive. */
 @media(max-width:1024px) and (pointer:coarse){body.mobile-navigating .mobile-turn{pointer-events:none}body.mobile-navigating .mobile-speed,body.mobile-navigating .mobile-progress,body.mobile-navigating .mobile-gps-notice{pointer-events:none}body.mobile-navigating .mobile-drive-bottom{pointer-events:auto}body.mobile-navigating .mobile-drive-bottom button{touch-action:manipulation}body.mobile-navigating .maplibregl-ctrl-bottom-right{bottom:118px}}
+
+.vehicle-picker{display:flex;flex-direction:column;gap:7px;background:#263442;border:1px solid #455a6b;border-radius:12px;padding:12px;margin:12px 0}.vehicle-picker label{font-weight:700;color:#d4f6e1}.vehicle-picker select{background:#182a3a;color:#fff;border:1px solid #60768a;border-radius:8px;padding:10px;font-size:15px}.vehicle-picker small{color:#adc4d0}
+.vehicle-map-marker{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#153a37e8;border:3px solid #d7ffe8;box-shadow:0 3px 16px #0009;font-size:28px;line-height:1;transform:rotate(var(--marker-bearing,0deg));user-select:none;pointer-events:none}
+.vehicle-map-marker[data-vehicle="character"],.vehicle-map-marker[data-vehicle="broom"]{transform:none}
+.vehicle-leaflet-wrapper{background:transparent;border:0}
+.mobile-drive-bottom #mobileVehicle{font-size:23px}
+@media(max-width:1024px) and (pointer:coarse){.vehicle-picker{display:flex}body.mobile-navigating .vehicle-picker{display:none}}
+@media(max-width:380px){.mobile-drive-bottom #mobileVehicle{min-width:36px}}
