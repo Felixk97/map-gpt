@@ -86,3 +86,6 @@
 @media(max-width:380px){.mobile-turn{padding:10px;gap:7px}.mobile-turn-icon{font-size:40px;min-width:42px}.mobile-turn-copy strong{font-size:18px}.mobile-speed{width:65px;height:65px}.mobile-speed strong{font-size:25px}.mobile-speed small{top:68px}.mobile-drive-bottom{gap:5px;padding:8px}.mobile-drive-bottom button{min-width:40px}}
 
 .sim-scrub-label{display:flex;justify-content:space-between;gap:12px;margin-top:12px;font-size:12px;color:#d2e5ef}.simulation-panel #simScrub{display:block;width:100%;margin:8px 0 10px;accent-color:#21cf79;cursor:pointer}.simulation-panel #simPercent{font-variant-numeric:tabular-nums;color:#88eab5}
+
+/* Navigation overlays should not block map gestures; only their controls are interactive. */
+@media(max-width:1024px) and (pointer:coarse){body.mobile-navigating .mobile-turn{pointer-events:none}body.mobile-navigating .mobile-speed,body.mobile-navigating .mobile-progress,body.mobile-navigating .mobile-gps-notice{pointer-events:none}body.mobile-navigating .mobile-drive-bottom{pointer-events:auto}body.mobile-navigating .mobile-drive-bottom button{touch-action:manipulation}body.mobile-navigating .maplibregl-ctrl-bottom-right{bottom:118px}}
