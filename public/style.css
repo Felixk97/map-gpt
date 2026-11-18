@@ -97,3 +97,13 @@
 .mobile-drive-bottom #mobileVehicle{font-size:23px}
 @media(max-width:1024px) and (pointer:coarse){.vehicle-picker{display:flex}body.mobile-navigating .vehicle-picker{display:none}}
 @media(max-width:380px){.mobile-drive-bottom #mobileVehicle{min-width:36px}}
+
+/* Custom vector art, with optional gentle motion for broom and wizard. */
+.vehicle-map-marker{overflow:visible;font-size:initial;transform:none!important}
+.vehicle-map-marker .vehicle-art{display:flex;width:42px;height:42px;align-items:center;justify-content:center;transform:rotate(var(--marker-bearing,0deg));transform-origin:center}
+.vehicle-map-marker[data-vehicle="character"] .vehicle-art,.vehicle-map-marker[data-vehicle="broom"] .vehicle-art{transform:none;animation:hogwarts-float 1.8s ease-in-out infinite}
+.vehicle-map-marker[data-vehicle="broom"]{box-shadow:0 3px 16px #0009,0 0 15px #ba94ff77}
+@keyframes hogwarts-float{0%,100%{translate:0 2px}50%{translate:0 -4px}}
+.mobile-drive-bottom #mobileVehicle{display:flex;align-items:center;justify-content:center}
+.mobile-drive-bottom #mobileVehicle svg{width:32px;height:32px}
+@media(prefers-reduced-motion:reduce){.vehicle-map-marker .vehicle-art{animation:none!important;translate:none!important}}
